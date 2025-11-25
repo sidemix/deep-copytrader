@@ -56,6 +56,28 @@ def toggle_wallet(address):
     
     return redirect(url_for('index'))
 
+@app.route('/debug_storage')
+def debug_storage():
+    """Debug route to check storage locations"""
+    import os
+    results = []
+    
+    paths_to_check = ['/opt/data/config.json', 'config.json']
+    
+    for path in paths_to_check:
+        exists = os.path.exists(path)
+        results.append(f"{path}: {'EXISTS' if exists else 'MISSING'}")
+        
+        if exists:
+            try:
+                with open(path, 'r') as f:
+                    content = json.load(f)
+                    results.append(f"  Content: {len(content.get('copied_wallets', {}))} wallets")
+            except Exception as e:
+                results.append(f"  Error reading: {e}")
+    
+    return "<br>".join(results)
+
 @app.route('/remove_wallet/<address>')
 def remove_wallet(address):
     """Remove a wallet from copying"""
