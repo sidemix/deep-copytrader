@@ -30,26 +30,29 @@ def update_environment_wallets(wallets):
 @app.route('/')
 def index():
     """Main dashboard"""
-    bot.load_config()
-    
-    # Calculate wallet statistics
-    wallet_stats = []
-    for address, data in bot.config['copied_wallets'].items():
-        if isinstance(data, dict):
-            stats = {
-                'address': address,
-                'nickname': data.get('nickname', 'Unknown'),
-                'active': data.get('active', True),
-                'total_trades': data.get('total_trades', 0),
-                'profitable_trades': data.get('profitable_trades', 0),
-                'total_pnl': data.get('total_pnl', 0),
-                'success_rate': (data.get('profitable_trades', 0) / data.get('total_trades', 1) * 100) if data.get('total_trades', 0) > 0 else 0
-            }
-            wallet_stats.append(stats)
-    
-    return render_template('index.html', 
-                         config=bot.config,
-                         wallet_stats=wallet_stats)
+    try:
+        bot.load_config()
+        
+        # Calculate wallet statistics
+        wallet_stats = []
+        for address, data in bot.config['copied_wallets'].items():
+            if isinstance(data, dict):
+                stats = {
+                    'address': address,
+                    'nickname': data.get('nickname', 'Unknown'),
+                    'active': data.get('active', True),
+                    'total_trades': data.get('total_trades', 0),
+                    'profitable_trades': data.get('profitable_trades', 0),
+                    'total_pnl': data.get('total_pnl', 0),
+                    'success_rate': (data.get('profitable_trades', 0) / data.get('total_trades', 1) * 100) if data.get('total_trades', 0) > 0 else 0
+                }
+                wallet_stats.append(stats)
+        
+        return render_template('index.html', 
+                             config=bot.config,
+                             wallet_stats=wallet_stats)
+    except Exception as e:
+        return f"Error loading dashboard: {str(e)}", 500
 
 @app.route('/add_wallet', methods=['POST'])
 def add_wallet():
@@ -145,6 +148,11 @@ def toggle_wallet(address):
                 save_wallets_to_env(env_wallets)
     
     return redirect(url_for('index'))
+
+@app.route('/health')
+def health():
+    """Simple health check"""
+    return "OK - App is running"
 
 @app.route('/debug_storage')
 def debug_storage():
