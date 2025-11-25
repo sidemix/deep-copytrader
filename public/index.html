@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Polymarket Copy Trader</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .wallet { border-left: 4px solid #007bff; }
+        .wallet.paused { border-left-color: #6c757d; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-card { background: #007bff; color: white; padding: 15px; border-radius: 8px; text-align: center; }
+        .btn { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .form-group { margin: 10px 0; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Polymarket Copy Trader</h1>
+        
+        <div class="card">
+            <h2>Bot Controls</h2>
+            <div id="botStatus">
+                <strong>Status:</strong> <span id="statusText">ACTIVE</span><br>
+                <strong>Test Mode:</strong> <span id="testMode">ON</span><br>
+                <strong>Total Wallets:</strong> <span id="totalWallets">0</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Overall Statistics</h3>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <h4>Total Trades</h4>
+                    <div id="totalTrades">0</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Active Trades</h4>
+                    <div id="activeTrades">0</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Profitable Trades</h4>
+                    <div id="profitableTrades">0</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Total P&L</h4>
+                    <div id="totalPnl">$0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Add Wallet to Copy</h3>
+            <div class="form-group">
+                <input type="text" id="walletAddress" placeholder="0x..." style="width: 400px;">
+                <input type="text" id="nickname" placeholder="Nickname">
+                <button class="btn btn-primary" onclick="addWallet()">Add Wallet</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Copied Wallets</h3>
+            <div id="walletsList">
+                Loading wallets...
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Recent Activity</h3>
+            <div id="activityLog">
+                <div>System started...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/dashboard-data');
+                const data = await response.json();
+                
+                // Update bot status
+                document.getElementById('statusText').textContent = 'ACTIVE';
+                document.getElementById('testMode').textContent = data.testMode ? 'ON' : 'OFF';
+                document.getElementById('totalWallets').textContent = data.totalWallets;
+                
+                // Update stats
+                document.getElementById('totalTrades').textContent = data.stats.totalTrades || 0;
+                document.getElementById('activeTrades').textContent = data.stats.activeTrades || 0;
+                document.getElementById('profitableTrades').textContent = data.stats.profitableTrades || 0;
+                document.getElementById('totalPnl').textContent = '$' + (data.stats.totalPnl || 0).toFixed(2);
+                
+                // Update wallets
+                const walletsHtml = data.wallets.map(wallet => `
+                    <div class="card wallet ${wallet.active ? '' : 'paused'}">
+                        <h4>${wallet.nickname}</h4>
+                        <div><small>${wallet.address}</small></div>
+                        <div class="stats-grid">
+                            <div>Trades: ${wallet.trades}</div>
+                            <div>Profitable: ${wallet.profitable}</div>
+                            <div>Success Rate: ${wallet.successRate}%</div>
+                            <div>P&L: $${wallet.pnl}</div>
+                        </div>
+                        <div>
+                            <button class="btn ${wallet.active ? 'btn-warning' : 'btn-primary'}" 
+                                    onclick="toggleWallet('${wallet.address}', ${!wallet.active})">
+                                ${wallet.active ? 'Pause' : 'Resume'}
+                            </button>
+                            <button class="btn btn-danger" onclick="removeWallet('${wallet.address}')">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                document.getElementById('walletsList').innerHTML = walletsHtml || 'No wallets added';
+                
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+                document.getElementById('walletsList').innerHTML = 'Error loading data';
+            }
+        }
+        
+        async function addWallet() {
+            const address = document.getElementById('walletAddress').value.trim();
+            const nickname = document.getElementById('nickname').value.trim();
+            
+            if (!address || !nickname) {
+                alert('Please enter both wallet address and nickname');
+                return;
+            }
+            
+            if (!address.startsWith('0x') || address.length !== 42) {
+                alert('Please enter a valid Ethereum wallet address (0x...)');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/add-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: address, nickname })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('walletAddress').value = '';
+                    document.getElementById('nickname').value = '';
+                    updateDashboard();
+                    addActivity(`✅ Added wallet: ${nickname}`);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error adding wallet: ' + error.message);
+            }
+        }
+        
+        async function removeWallet(address) {
+            if (confirm('Are you sure you want to remove this wallet?')) {
+                await fetch('/api/remove-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: address })
+                });
+                updateDashboard();
+                addActivity(`❌ Removed wallet: ${address.substring(0, 8)}...`);
+            }
+        }
+        
+        async function toggleWallet(address, active) {
+            await fetch('/api/set-wallet-active', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ walletAddress: address, active })
+            });
+            updateDashboard();
+            addActivity(`${active ? '▶️' : '⏸️'} ${active ? 'Resumed' : 'Paused'} wallet: ${address.substring(0, 8)}...`);
+        }
+        
+        function addActivity(message) {
+            const log = document.getElementById('activityLog');
+            const entry = document.createElement('div');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 10 entries
+            if (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        // Update every 5 seconds
+        setInterval(updateDashboard, 5000);
+        updateDashboard();
+        
+        // Add some sample activity
+        addActivity('🚀 Dashboard loaded successfully');
+        addActivity('📊 Connected to Polymarket API');
+    </script>
+</body>
+</html>

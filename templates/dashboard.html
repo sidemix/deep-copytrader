@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Polymarket Copy Trader</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .wallet { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .active { border-left: 5px solid green; }
+        .paused { border-left: 5px solid orange; }
+        .trade { background: #f9f9f9; padding: 10px; margin: 5px 0; border-radius: 3px; }
+        .stats { background: #e9f7fe; padding: 15px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Polymarket Copy Trader</h1>
+    
+    <div class="stats">
+        <h3>Overall Stats</h3>
+        <div id="stats">Loading...</div>
+    </div>
+
+    <div>
+        <h3>Add Wallet to Copy</h3>
+        <input type="text" id="walletAddress" placeholder="Wallet Address">
+        <input type="text" id="nickname" placeholder="Nickname">
+        <button onclick="addWallet()">Add Wallet</button>
+    </div>
+
+    <div id="wallets">
+        <h3>Copied Wallets</h3>
+        <div>Loading...</div>
+    </div>
+
+    <script>
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/dashboard-data');
+                const data = await response.json();
+                
+                // Update stats
+                document.getElementById('stats').innerHTML = `
+                    Total Trades: ${data.stats.totalTrades || 0} | 
+                    Active Trades: ${data.stats.activeTrades || 0} | 
+                    Last Updated: ${new Date(data.last_updated).toLocaleTimeString()}
+                `;
+                
+                // Update wallets
+                const walletsHtml = data.wallets.map(wallet => `
+                    <div class="wallet ${wallet.active ? 'active' : 'paused'}">
+                        <strong>${wallet.nickname}</strong> (${wallet.address.substring(0, 10)}...)<br>
+                        Trades: ${wallet.trades} | 
+                        Profitable: ${wallet.profitable} | 
+                        Success Rate: ${wallet.successRate}% | 
+                        P&L: $${wallet.pnl}<br>
+                        <button onclick="toggleWallet('${wallet.address}', ${!wallet.active})">
+                            ${wallet.active ? 'Pause' : 'Resume'}
+                        </button>
+                        <button onclick="removeWallet('${wallet.address}')">Remove</button>
+                    </div>
+                `).join('');
+                
+                document.getElementById('wallets').innerHTML = walletsHtml;
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+            }
+        }
+        
+        async function addWallet() {
+            const address = document.getElementById('walletAddress').value;
+            const nickname = document.getElementById('nickname').value;
+            
+            if (!address || !nickname) {
+                alert('Please enter both wallet address and nickname');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/add-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: address, nickname })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Wallet added successfully!');
+                    updateDashboard();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error adding wallet: ' + error.message);
+            }
+        }
+        
+        async function removeWallet(address) {
+            if (confirm('Are you sure you want to remove this wallet?')) {
+                await fetch('/api/remove-wallet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: address })
+                });
+                updateDashboard();
+            }
+        }
+        
+        async function toggleWallet(address, active) {
+            await fetch('/api/set-wallet-active', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ walletAddress: address, active })
+            });
+            updateDashboard();
+        }
+        
+        // Update every 5 seconds
+        setInterval(updateDashboard, 5000);
+        updateDashboard();
+    </script>
+</body>
+</html>
