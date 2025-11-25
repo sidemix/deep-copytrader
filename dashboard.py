@@ -111,6 +111,38 @@ def update_risk():
     
     return redirect(url_for('index'))
 
+@app.route('/debug_disk')
+def debug_disk():
+    """Check if persistent disk is accessible"""
+    import os
+    
+    results = []
+    
+    # Check if /opt/data exists and is writable
+    disk_path = '/opt/data'
+    exists = os.path.exists(disk_path)
+    results.append(f"Disk path {disk_path}: {'EXISTS' if exists else 'MISSING'}")
+    
+    if exists:
+        # Check if we can write to it
+        test_file = '/opt/data/test.txt'
+        try:
+            with open(test_file, 'w') as f:
+                f.write('test')
+            results.append("✅ Can WRITE to /opt/data")
+            os.remove(test_file)
+        except Exception as e:
+            results.append(f"❌ Cannot write to /opt/data: {e}")
+        
+        # Check permissions
+        import stat
+        stat_info = os.stat(disk_path)
+        results.append(f"Permissions: {oct(stat_info.st_mode)}")
+    else:
+        results.append("❌ Persistent disk not mounted - check Render disk configuration")
+    
+    return "<br>".join(results)
+
 @app.route('/run_bot')
 def run_bot():
     """Manually trigger the bot to check for trades"""
