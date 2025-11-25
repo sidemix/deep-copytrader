@@ -21,7 +21,8 @@ class Trade:
 
 class SimpleCopyTrader:
     def __init__(self):
-        # Initialize config FIRST - methods are defined below
+        print("🤖 Initializing CopyTrader...")
+        # Initialize config FIRST
         self.config = self.load_config()
         
         # Get API credentials from environment
@@ -36,63 +37,45 @@ class SimpleCopyTrader:
             print("🚧 DRY RUN MODE - Using staging environment")
         else:
             print("🚀 LIVE TRADING MODE - Using production environment")
-
+    
     def load_config(self):
-        """Load configuration from JSON file - uses persistent storage if available"""
-        # Try persistent disk first, then fallback to local
-        config_paths = ['/opt/data/config.json', 'config.json']
-        
-        for config_path in config_paths:
-            try:
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                    # Ensure copied_wallets exists
-                    if 'copied_wallets' not in config:
-                        config['copied_wallets'] = {}
-                    print(f"✅ Loaded config from {config_path}")
-                    return config
-            except FileNotFoundError:
-                continue
-            except Exception as e:
-                print(f"⚠️ Error loading {config_path}: {e}")
-                continue
-        
-        # Create default config if no file exists
-        print("🆕 Creating new config file")
-        default_config = {
-            'bot_active': False,
-            'test_mode': True,
-            'risk_percentage': 10,
-            'copied_wallets': {}
-        }
-        self.save_config(default_config)
-        return default_config
-
+        """Load configuration from JSON file"""
+        print("📁 Loading config...")
+        try:
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+                # Ensure copied_wallets exists
+                if 'copied_wallets' not in config:
+                    config['copied_wallets'] = {}
+                print(f"✅ Loaded config with {len(config.get('copied_wallets', {}))} wallets")
+                return config
+        except FileNotFoundError:
+            print("🆕 Creating new config file")
+            # Create default config
+            default_config = {
+                'bot_active': False,
+                'test_mode': True,
+                'risk_percentage': 10,
+                'copied_wallets': {}
+            }
+            self.save_config(default_config)
+            return default_config
+        except Exception as e:
+            print(f"❌ Error loading config: {e}")
+            return {'copied_wallets': {}}
+    
     def save_config(self, config=None):
-        """Save configuration to JSON file - uses persistent storage if available"""
+        """Save configuration to JSON file"""
         if config is None:
             config = self.config
         
-        # Try persistent disk first, then fallback to local
-        config_paths = ['/opt/data/config.json', 'config.json']
-        saved = False
-        
-        for config_path in config_paths:
-            try:
-                # Create directory if it doesn't exist
-                os.makedirs(os.path.dirname(config_path), exist_ok=True)
-                with open(config_path, 'w') as f:
-                    json.dump(config, f, indent=2)
-                print(f"💾 Saved config to {config_path}")
-                saved = True
-                break
-            except Exception as e:
-                print(f"⚠️ Could not save to {config_path}: {e}")
-                continue
-        
-        if not saved:
-            print("❌ Failed to save config to any location")
-
+        try:
+            with open('config.json', 'w') as f:
+                json.dump(config, f, indent=2)
+            print(f"💾 Saved config with {len(config.get('copied_wallets', {}))} wallets")
+        except Exception as e:
+            print(f"❌ Error saving config: {e}")
+    
     def _generate_signature(self, timestamp: str, method: str, path: str, body: str = "") -> str:
         message = timestamp + method.upper() + path + body
         return hmac.new(
@@ -264,6 +247,10 @@ class SimpleCopyTrader:
             except Exception as e:
                 print(f"❌ Error in main loop: {e}")
                 time.sleep(60)  # Wait 1 minute before retrying
+
+    def load_my_positions(self):
+        """Stub method for loading positions"""
+        return []
 
 # Create a global bot instance
 bot = SimpleCopyTrader()
