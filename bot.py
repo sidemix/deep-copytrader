@@ -22,7 +22,7 @@ class Trade:
 class SimpleCopyTrader:
     def __init__(self):
         print("🤖 Initializing CopyTrader...")
-        # Initialize config FIRST
+        # Initialize config from environment variables
         self.config = self.load_config()
         
         # Get API credentials from environment
@@ -39,89 +39,40 @@ class SimpleCopyTrader:
             print("🚀 LIVE TRADING MODE - Using production environment")
     
     def load_config(self):
-        """Load configuration - PERSISTENT storage only"""
-        print("📁 Loading config from PERSISTENT storage...")
+        """Load configuration from environment variables"""
+        print("📁 Loading config from environment...")
         
-        persistent_path = '/opt/data/config.json'
-        local_path = 'config.json'
-        
-        # STEP 1: Try to load from persistent disk
+        # Get wallets from environment variable
+        wallets_json = os.getenv('WALLETS', '{}')
         try:
-            with open(persistent_path, 'r') as f:
-                config = json.load(f)
-                if 'copied_wallets' not in config:
-                    config['copied_wallets'] = {}
-                print(f"✅ Loaded from PERSISTENT: {len(config.get('copied_wallets', {}))} wallets")
-                return config
-        except FileNotFoundError:
-            print("⚠️ No config found on persistent disk")
-        except Exception as e:
-            print(f"⚠️ Error loading persistent: {e}")
+            wallets = json.loads(wallets_json)
+            print(f"✅ Loaded {len(wallets)} wallets from environment")
+        except:
+            wallets = {}
+            print("🆕 No wallets in environment - starting fresh")
         
-        # STEP 2: If no persistent config, check if local config exists and copy it
-        try:
-            with open(local_path, 'r') as f:
-                local_config = json.load(f)
-                if 'copied_wallets' not in local_config:
-                    local_config['copied_wallets'] = {}
-                print(f"📥 Found local config: {len(local_config.get('copied_wallets', {}))} wallets")
-                
-                # Copy local config to persistent storage
-                try:
-                    os.makedirs('/opt/data', exist_ok=True)
-                    with open(persistent_path, 'w') as pf:
-                        json.dump(local_config, pf, indent=2)
-                    print(f"💾 COPIED local config to PERSISTENT storage")
-                    return local_config
-                except Exception as e:
-                    print(f"❌ Failed to copy to persistent: {e}")
-                    return local_config
-        except FileNotFoundError:
-            print("📭 No local config found")
-        except Exception as e:
-            print(f"⚠️ Error loading local: {e}")
-        
-        # STEP 3: Create new config on PERSISTENT storage
-        print("🆕 Creating NEW config on PERSISTENT storage")
-        default_config = {
-            'bot_active': False,
-            'test_mode': True,
-            'risk_percentage': 10,
-            'copied_wallets': {}
+        config = {
+            'bot_active': os.getenv('BOT_ACTIVE', 'false').lower() == 'true',
+            'test_mode': os.getenv('TEST_MODE', 'true').lower() == 'true',
+            'risk_percentage': int(os.getenv('RISK_PERCENTAGE', '10')),
+            'copied_wallets': wallets
         }
         
-        try:
-            os.makedirs('/opt/data', exist_ok=True)
-            with open(persistent_path, 'w') as f:
-                json.dump(default_config, f, indent=2)
-            print(f"💾 Created NEW config on PERSISTENT storage")
-        except Exception as e:
-            print(f"❌ Failed to create persistent config: {e}")
-            # Last resort: local file
-            with open(local_path, 'w') as f:
-                json.dump(default_config, f, indent=2)
-            print(f"💾 Created config locally (will be lost on deploy)")
-        
-        return default_config
+        return config
     
     def save_config(self, config=None):
-        """Save configuration - PERSISTENT storage only"""
+        """Save configuration - prints instructions to update environment"""
         if config is None:
             config = self.config
         
-        persistent_path = '/opt/data/config.json'
-        
-        print(f"💾 Saving {len(config.get('copied_wallets', {}))} wallets to PERSISTENT storage...")
-        
-        # ONLY save to persistent disk
-        try:
-            os.makedirs('/opt/data', exist_ok=True)
-            with open(persistent_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            print(f"✅ SUCCESS: Saved to PERSISTENT storage: {persistent_path}")
-        except Exception as e:
-            print(f"❌ CRITICAL: Failed to save to persistent storage: {e}")
-            # Don't fallback to local - we want to know if persistent fails
+        print("💾 CONFIG UPDATED - Manual step required:")
+        print("==========================================")
+        print("Add this to your Render environment variables:")
+        print(f"WALLETS={json.dumps(config['copied_wallets'])}")
+        print(f"BOT_ACTIVE={str(config['bot_active']).lower()}")
+        print(f"TEST_MODE={str(config['test_mode']).lower()}")
+        print(f"RISK_PERCENTAGE={config['risk_percentage']}")
+        print("==========================================")
     
     def _generate_signature(self, timestamp: str, method: str, path: str, body: str = "") -> str:
         message = timestamp + method.upper() + path + body
@@ -167,11 +118,9 @@ class SimpleCopyTrader:
                 if order_owner == wallet_address.lower():
                     order_time = datetime.fromisoformat(order['createdAt'].replace('Z', '+00:00'))
                     
-                    # Only process filled orders within our time range
                     if (order_time > since_time and 
                         order.get('status') in ['FILLED', 'PARTIALLY_FILLED']):
                         
-                        # Parse token ID to get market and outcome
                         token_id = order.get('tokenId', '')
                         market_id = token_id.split('-')[0] if '-' in token_id else token_id
                         outcome_id = token_id.split('-')[1] if '-' in token_id else '0'
@@ -197,25 +146,13 @@ class SimpleCopyTrader:
     
     def place_trade(self, trade: Trade, risk_percentage: float) -> bool:
         """Place a copy trade"""
-        copy_size = trade.size * (risk_percentage / 100)  # Convert percentage to decimal
+        copy_size = trade.size * (risk_percentage / 100)
         
         if self.dry_run or self.config.get('test_mode', True):
-            print(f"🧪 DRY RUN: Would copy {trade.side} {copy_size:.4f} @ {trade.price} for {trade.market_id}")
-            
-            # Update wallet stats
-            wallet_data = self.config['copied_wallets'].get(trade.wallet_address, {})
-            if isinstance(wallet_data, dict):
-                wallet_data['total_trades'] = wallet_data.get('total_trades', 0) + 1
-                # Simple P&L simulation
-                wallet_data['total_pnl'] = wallet_data.get('total_pnl', 0) + (copy_size * 0.1)  # Simulate profit
-                wallet_data['profitable_trades'] = wallet_data.get('profitable_trades', 0) + 1
-                self.config['copied_wallets'][trade.wallet_address] = wallet_data
-                self.save_config()
-            
+            print(f"🧪 DRY RUN: Would copy {trade.side} {copy_size:.4f} @ {trade.price}")
             return True
         
         try:
-            # Place real order
             token_id = f"{trade.market_id}-{trade.outcome_id}"
             order_data = {
                 "tokenId": token_id,
@@ -232,16 +169,7 @@ class SimpleCopyTrader:
             response = requests.post(self.base_url + path, headers=headers, json=order_data, timeout=30)
             response.raise_for_status()
             
-            result = response.json()
             print(f"✅ COPIED TRADE: {trade.side} {copy_size:.4f} @ {trade.price}")
-            
-            # Update wallet stats for real trade
-            wallet_data = self.config['copied_wallets'].get(trade.wallet_address, {})
-            if isinstance(wallet_data, dict):
-                wallet_data['total_trades'] = wallet_data.get('total_trades', 0) + 1
-                self.config['copied_wallets'][trade.wallet_address] = wallet_data
-                self.save_config()
-            
             return True
             
         except Exception as e:
@@ -249,7 +177,7 @@ class SimpleCopyTrader:
             return False
     
     def monitor_and_copy(self):
-        """Main monitoring function - check all active wallets and copy trades"""
+        """Main monitoring function"""
         if not self.config.get('bot_active', False):
             print("⏸️ Bot is not active - skipping monitoring")
             return
@@ -266,43 +194,18 @@ class SimpleCopyTrader:
             recent_trades = self.get_wallet_trades(wallet_address)
             
             for trade in recent_trades:
-                # In a real implementation, you'd check if we already copied this trade
-                # For now, we'll copy all new trades
                 risk_percentage = self.config.get('risk_percentage', 10)
-                print(f"🆕 New trade detected: {trade.side} {trade.size} @ {trade.price}")
+                print(f"🆕 New trade: {trade.side} {trade.size} @ {trade.price}")
                 
                 success = self.place_trade(trade, risk_percentage)
                 
                 if success:
-                    print(f"✅ Successfully copied trade from {nickname}")
+                    print(f"✅ Copied trade from {nickname}")
                 else:
-                    print(f"❌ Failed to copy trade from {nickname}")
-    
-    def run_continuous(self, interval_minutes: int = 5):
-        """Run the bot continuously"""
-        print(f"🤖 Starting copy trader bot (checking every {interval_minutes} minutes)")
-        print(f"📊 Mode: {'DRY RUN' if self.dry_run else 'LIVE TRADING'}")
-        
-        while True:
-            try:
-                self.monitor_and_copy()
-                print(f"💤 Waiting {interval_minutes} minutes until next check...")
-                time.sleep(interval_minutes * 60)
-            except KeyboardInterrupt:
-                print("🛑 Bot stopped by user")
-                break
-            except Exception as e:
-                print(f"❌ Error in main loop: {e}")
-                time.sleep(60)  # Wait 1 minute before retrying
+                    print(f"❌ Failed to copy from {nickname}")
 
     def load_my_positions(self):
-        """Stub method for loading positions"""
         return []
 
 # Create a global bot instance
 bot = SimpleCopyTrader()
-
-# For manual testing
-if __name__ == "__main__":
-    # Run once
-    bot.monitor_and_copy()

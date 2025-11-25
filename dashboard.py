@@ -21,6 +21,12 @@ def save_wallets_to_env(wallets):
     print(wallets_json)
     return wallets_json
 
+def update_environment_wallets(wallets):
+    """Print instructions to update environment variables"""
+    print("🔧 UPDATE REQUIRED: Copy this to your Render environment variables:")
+    print(f"WALLETS={json.dumps(wallets)}")
+    return True
+
 @app.route('/')
 def index():
     """Main dashboard"""
@@ -47,7 +53,6 @@ def index():
 
 @app.route('/add_wallet', methods=['POST'])
 def add_wallet():
-    """Add a new wallet to copy"""
     address = request.form.get('address')
     nickname = request.form.get('nickname')
     
@@ -57,12 +62,11 @@ def add_wallet():
             'active': True,
             'added_date': datetime.now().isoformat()
         }
-        bot.save_config()
+        bot.save_config()  # This will print instructions
         
-        # Also save to environment variable backup
-        env_wallets = get_wallets_from_env()
-        env_wallets[address] = bot.config['copied_wallets'][address]
-        save_wallets_to_env(env_wallets)
+        # Also print to logs
+        print(f"➕ Added wallet: {nickname} ({address})")
+        print(f"📋 Total wallets: {len(bot.config['copied_wallets'])}")
     
     return redirect(url_for('index'))
 
