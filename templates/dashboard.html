@@ -213,6 +213,22 @@
             </div>
         </div>
 
+        <!-- Add this new section after the Analytics section -->
+<div id="wallet-performance" class="card">
+    <h2>Wallet Performance Dashboard</h2>
+    <div id="performance-content">
+        <div class="performance-stats">
+            <div class="stats-grid" id="wallet-stats-grid">
+                <!-- Wallet performance cards will be loaded here -->
+            </div>
+        </div>
+        
+        <div class="wallet-details" id="wallet-details">
+            <!-- Detailed wallet performance will be shown here -->
+        </div>
+    </div>
+</div>
+
         <!-- Wallets Section -->
         <div id="wallets" class="card">
             <h2>Wallet Management</h2>
@@ -457,6 +473,178 @@
             updateStatusDisplay();
             loadAnalytics();
         }, 30000);
+        // Wallet Performance Functions
+function loadWalletPerformance() {
+    fetch('/api/wallets/performance')
+        .then(r => r.json())
+        .then(wallets => {
+            if (wallets.length === 0) {
+                document.getElementById('wallet-stats-grid').innerHTML = '<p>No wallets to track yet</p>';
+                return;
+            }
+
+            let html = '';
+            wallets.forEach(wallet => {
+                const profitColor = wallet.total_profit > 0 ? 'color: var(--success);' : 
+                                  wallet.total_profit < 0 ? 'color: var(--danger);' : '';
+                const statusClass = wallet.active ? 'status-running' : 'status-stopped';
+                
+                html += `
+                    <div class="card" style="margin: 10px 0;">
+                        <div style="display: flex; justify-content: between; align-items: center;">
+                            <div>
+                                <h4>${wallet.nickname}</h4>
+                                <small style="font-family: monospace;">${wallet.address.substring(0, 8)}...</small>
+                            </div>
+                            <span class="status-badge ${statusClass}">
+                                ${wallet.active ? 'ACTIVE' : 'ARCHIVED'}
+                            </span>
+                        </div>
+                        
+                        <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin: 1rem 0;">
+                            <div class="stat-card">
+                                <div class="stat-number">${wallet.total_trades || 0}</div>
+                                <div>Total Trades</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" style="${profitColor}">
+                                    $${(wallet.total_profit || 0).toFixed(2)}
+                                </div>
+                                <div>Total P&L</div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                            <button class="btn-primary" onclick="viewWalletDetails(${wallet.id})">
+                                View Details
+                            </button>
+                            ${wallet.active ? 
+                                `<button class="btn-danger" onclick="archiveWallet(${wallet.id})">
+                                    Archive
+                                </button>` :
+                                `<button class="btn-success" onclick="activateWallet(${wallet.id})">
+                                    Activate
+                                </button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('wallet-stats-grid').innerHTML = html;
+        })
+        .catch(err => {
+            console.error('Error loading wallet performance:', err);
+            document.getElementById('wallet-stats-grid').innerHTML = '<p>Error loading performance data</p>';
+        });
+}
+
+function viewWalletDetails(walletId) {
+    fetch(`/api/wallets/${walletId}/performance`)
+        .then(r => r.json())
+        .then(performance => {
+            const stats = performance.stats;
+            let html = `
+                <h3>${performance.wallet_info.nickname} - Detailed Performance</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.total_trades}</div>
+                        <div>Total Trades</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.win_rate}%</div>
+                        <div>Win Rate</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: ${stats.total_profit > 0 ? 'var(--success)' : 'var(--danger)'}">
+                            $${stats.total_profit.toFixed(2)}
+                        </div>
+                        <div>Total Profit</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${stats.profitability}</div>
+                        <div>Performance</div>
+                    </div>
+                </div>
+                
+                <h4>Recent Trades</h4>
+            `;
+            
+            if (performance.recent_trades.length > 0) {
+                html += '<table><tr><th>Market</th><th>Type</th><th>Shares</th><th>P&L</th><th>Date</th></tr>';
+                performance.recent_trades.forEach(trade => {
+                    const profitColor = trade.profit_loss > 0 ? 'color: var(--success);' : 
+                                      trade.profit_loss < 0 ? 'color: var(--danger);' : '';
+                    html += `
+                        <tr>
+                            <td>${trade.market_id}</td>
+                            <td>${trade.type}</td>
+                            <td>${trade.shares}</td>
+                            <td style="${profitColor}">$${trade.profit_loss.toFixed(2)}</td>
+                            <td>${new Date(trade.timestamp).toLocaleDateString()}</td>
+                        </tr>
+                    `;
+                });
+                html += '</table>';
+            } else {
+                html += '<p>No trades recorded yet</p>';
+            }
+            
+            document.getElementById('wallet-details').innerHTML = html;
+        })
+        .catch(err => {
+            console.error('Error loading wallet details:', err);
+            document.getElementById('wallet-details').innerHTML = '<p>Error loading wallet details</p>';
+        });
+}
+
+function archiveWallet(walletId) {
+    if (!confirm('Are you sure you want to archive this wallet? The bot will stop copying its trades.')) {
+        return;
+    }
+    
+    fetch(`/api/wallets/${walletId}/archive`, { method: 'POST' })
+        .then(r => r.json())
+        .then(result => {
+            alert(result.message);
+            loadWalletPerformance();
+        })
+        .catch(err => {
+            console.error('Error archiving wallet:', err);
+            alert('Error archiving wallet');
+        });
+}
+
+function activateWallet(walletId) {
+    fetch(`/api/wallets/${walletId}/activate`, { method: 'POST' })
+        .then(r => r.json())
+        .then(result => {
+            alert(result.message);
+            loadWalletPerformance();
+        })
+        .catch(err => {
+            console.error('Error activating wallet:', err);
+            alert('Error activating wallet');
+        });
+}
+
+// Add to your existing load functions
+function loadAllData() {
+    loadBotStatus();
+    loadAnalytics();
+    loadWallets();
+    loadSettings();
+    loadWalletPerformance(); // NEW - load performance data
+}
+
+// Update your auto-refresh to include performance data
+setInterval(() => {
+    if (document.getElementById('status-text').textContent.includes('RUNNING')) {
+        loadBotStatus();
+        loadAnalytics();
+        loadWalletPerformance();
+    }
+}, 30000);
     </script>
 </body>
 </html>
