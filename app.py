@@ -242,6 +242,5 @@ def activate_wallet(wallet_id):
 
 
 if __name__ == '__main__':
-    # Get the port from Railway environment variable, default to 8080 for local development
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
