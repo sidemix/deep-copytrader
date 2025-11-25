@@ -1,12 +1,155 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Polymarket Bot</title>
-</head>
-<body>
-    <h1>Polymarket Copy Trading Bot</h1>
-    <p>If you can see this, everything is working!</p>
-    <p>Status: <strong>RUNNING</strong></p>
-    <p>Mode: <strong>TEST</strong></p>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Dashboard</h1>
+            <div>
+                <span class="badge bg-{{ 'success' if config.MODE == 'LIVE' else 'warning' }} status-badge">
+                    MODE: {{ config.MODE }}
+                </span>
+                <span class="badge bg-{{ 'danger' if config.DRY_RUN else 'success' }} status-badge">
+                    DRY_RUN: {{ config.DRY_RUN }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">{{ stats.total_wallets }}</h5>
+                <p class="card-text">Total Wallets</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">{{ stats.active_wallets }}</h5>
+                <p class="card-text">Active Wallets</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">{{ stats.total_copied_trades }}</h5>
+                <p class="card-text">Copied Trades</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">${{ "%.2f"|format(stats.total_pnl) }}</h5>
+                <p class="card-text">Total P&L</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Leader Wallets</h2>
+            <a href="/wallets/add" class="btn btn-primary">Add Wallet</a>
+        </div>
+
+        {% if wallets %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Nickname</th>
+                        <th>Address</th>
+                        <th>Status</th>
+                        <th>Copy %</th>
+                        <th>Trades</th>
+                        <th>Win Rate</th>
+                        <th>P&L</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wallet in wallets %}
+                    <tr>
+                        <td>{{ wallet.nickname }}</td>
+                        <td><code>{{ wallet.wallet_address[:8] }}...{{ wallet.wallet_address[-6:] }}</code></td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if wallet.active else 'secondary' }}">
+                                {{ 'Active' if wallet.active else 'Paused' }}
+                            </span>
+                        </td>
+                        <td>{{ "%.1f"|format(wallet.copy_percentage * 100) }}%</td>
+                        <td>{{ wallet.stats.trade_count }}</td>
+                        <td>{{ "%.1f"|format(wallet.stats.win_rate * 100) }}%</td>
+                        <td class="{{ 'text-success' if wallet.stats.pnl > 0 else 'text-danger' }}">
+                            ${{ "%.2f"|format(wallet.stats.pnl) }}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="/wallets/{{ wallet.id }}/toggle" class="btn btn-{{ 'warning' if wallet.active else 'success' }}">
+                                    {{ 'Pause' if wallet.active else 'Resume' }}
+                                </a>
+                                <a href="/wallets/{{ wallet.id }}/edit" class="btn btn-outline-secondary">Edit</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            No wallets configured. <a href="/wallets/add" class="alert-link">Add your first wallet</a> to start copytrading.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <h2>Recent Activity</h2>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Wallet</th>
+                        <th>Action</th>
+                        <th>Market</th>
+                        <th>Size</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for activity in recent_activity %}
+                    <tr>
+                        <td>{{ activity.executed_at.strftime('%H:%M:%S') }}</td>
+                        <td>{{ activity.wallet_nickname }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if activity.side == 'BUY' else 'danger' }}">
+                                {{ activity.side }}
+                            </span>
+                        </td>
+                        <td><small>{{ activity.market_id[:8] }}...</small></td>
+                        <td>{{ "%.2f"|format(activity.size) }}</td>
+                        <td>{{ "%.3f"|format(activity.price) }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if activity.status == 'EXECUTED' else 'danger' if activity.status == 'REJECTED' else 'warning' }}">
+                                {{ activity.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
