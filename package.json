@@ -1,0 +1,15 @@
+{
+  "name": "polymarket-copytrader",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.14.2",
+    "node-fetch": "^3.3.2",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "scripts": {
+    "start": "node src/enhanced-copytrader.js",
+    "dev": "node --watch src/enhanced-copytrader.js"
+  }
+}

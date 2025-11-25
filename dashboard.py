@@ -241,19 +241,22 @@ def activity_feed():
     except:
         return "No activity data yet"
 
-@app.route('/run_bot')
-def run_bot():
-    """Manually trigger the bot to check for trades"""
-    try:
-        # Force reload config to get latest wallets
-        bot.load_config()
-        print("🚀 Starting bot monitoring...")
-        bot.monitor_and_copy()
-        print("✅ Bot monitoring completed")
-        return "✅ Bot executed successfully - check Render logs for API calls"
-    except Exception as e:
-        print(f"❌ Bot error: {e}")
-        return f"❌ Bot error: {str(e)}"
+// Replace your existing wallet monitoring with API calls
+async function updateDashboard() {
+    try {
+        const response = await fetch('/api/dashboard-data');
+        const data = await response.json();
+        
+        // Update your UI with the new data
+        updateWalletDisplays(data.wallets);
+        updateStats(data.stats);
+    } catch (error) {
+        console.error('Error updating dashboard:', error);
+    }
+}
+
+// Update every 5 seconds
+setInterval(updateDashboard, 5000);
 
 @app.route('/api/positions')
 def get_positions():
