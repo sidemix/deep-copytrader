@@ -1,0 +1,7 @@
+{
+    "base_url": "https://api.polymarket.com",
+    "copied_wallets": {},
+    "risk_percentage": 10,
+    "bot_active": false,
+    "test_mode": true
+}
