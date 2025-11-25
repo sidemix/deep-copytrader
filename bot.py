@@ -39,42 +39,89 @@ class SimpleCopyTrader:
             print("🚀 LIVE TRADING MODE - Using production environment")
     
     def load_config(self):
-        """Load configuration from JSON file"""
-        print("📁 Loading config...")
+        """Load configuration - PERSISTENT storage only"""
+        print("📁 Loading config from PERSISTENT storage...")
+        
+        persistent_path = '/opt/data/config.json'
+        local_path = 'config.json'
+        
+        # STEP 1: Try to load from persistent disk
         try:
-            with open('config.json', 'r') as f:
+            with open(persistent_path, 'r') as f:
                 config = json.load(f)
-                # Ensure copied_wallets exists
                 if 'copied_wallets' not in config:
                     config['copied_wallets'] = {}
-                print(f"✅ Loaded config with {len(config.get('copied_wallets', {}))} wallets")
+                print(f"✅ Loaded from PERSISTENT: {len(config.get('copied_wallets', {}))} wallets")
                 return config
         except FileNotFoundError:
-            print("🆕 Creating new config file")
-            # Create default config
-            default_config = {
-                'bot_active': False,
-                'test_mode': True,
-                'risk_percentage': 10,
-                'copied_wallets': {}
-            }
-            self.save_config(default_config)
-            return default_config
+            print("⚠️ No config found on persistent disk")
         except Exception as e:
-            print(f"❌ Error loading config: {e}")
-            return {'copied_wallets': {}}
+            print(f"⚠️ Error loading persistent: {e}")
+        
+        # STEP 2: If no persistent config, check if local config exists and copy it
+        try:
+            with open(local_path, 'r') as f:
+                local_config = json.load(f)
+                if 'copied_wallets' not in local_config:
+                    local_config['copied_wallets'] = {}
+                print(f"📥 Found local config: {len(local_config.get('copied_wallets', {}))} wallets")
+                
+                # Copy local config to persistent storage
+                try:
+                    os.makedirs('/opt/data', exist_ok=True)
+                    with open(persistent_path, 'w') as pf:
+                        json.dump(local_config, pf, indent=2)
+                    print(f"💾 COPIED local config to PERSISTENT storage")
+                    return local_config
+                except Exception as e:
+                    print(f"❌ Failed to copy to persistent: {e}")
+                    return local_config
+        except FileNotFoundError:
+            print("📭 No local config found")
+        except Exception as e:
+            print(f"⚠️ Error loading local: {e}")
+        
+        # STEP 3: Create new config on PERSISTENT storage
+        print("🆕 Creating NEW config on PERSISTENT storage")
+        default_config = {
+            'bot_active': False,
+            'test_mode': True,
+            'risk_percentage': 10,
+            'copied_wallets': {}
+        }
+        
+        try:
+            os.makedirs('/opt/data', exist_ok=True)
+            with open(persistent_path, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            print(f"💾 Created NEW config on PERSISTENT storage")
+        except Exception as e:
+            print(f"❌ Failed to create persistent config: {e}")
+            # Last resort: local file
+            with open(local_path, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            print(f"💾 Created config locally (will be lost on deploy)")
+        
+        return default_config
     
     def save_config(self, config=None):
-        """Save configuration to JSON file"""
+        """Save configuration - PERSISTENT storage only"""
         if config is None:
             config = self.config
         
+        persistent_path = '/opt/data/config.json'
+        
+        print(f"💾 Saving {len(config.get('copied_wallets', {}))} wallets to PERSISTENT storage...")
+        
+        # ONLY save to persistent disk
         try:
-            with open('config.json', 'w') as f:
+            os.makedirs('/opt/data', exist_ok=True)
+            with open(persistent_path, 'w') as f:
                 json.dump(config, f, indent=2)
-            print(f"💾 Saved config with {len(config.get('copied_wallets', {}))} wallets")
+            print(f"✅ SUCCESS: Saved to PERSISTENT storage: {persistent_path}")
         except Exception as e:
-            print(f"❌ Error saving config: {e}")
+            print(f"❌ CRITICAL: Failed to save to persistent storage: {e}")
+            # Don't fallback to local - we want to know if persistent fails
     
     def _generate_signature(self, timestamp: str, method: str, path: str, body: str = "") -> str:
         message = timestamp + method.upper() + path + body
