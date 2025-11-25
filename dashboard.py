@@ -232,6 +232,11 @@ def debug_simple():
     
     return "<br>".join(results)
 
+@app.route('/activity')
+def activity_feed():
+    """Show recent bot activity"""
+    activities = bot.load_activity_log()  # Last 50 activities
+    return render_template('activity.html', activities=activities)
 
 @app.route('/run_bot')
 def run_bot():

@@ -337,6 +337,17 @@ class SimpleCopyTrader:
     def load_my_positions(self):
         """Stub method for loading positions"""
         return []
+    
+    def log_activity(self, message, wallet_address=None, trade_data=None):
+    """Log activity for dashboard viewing"""
+    activity = {
+        'timestamp': datetime.now().isoformat(),
+        'message': message,
+        'wallet': wallet_address,
+        'trade_data': trade_data
+    }
+    # Save to persistent disk
+    self.save_activity_log(activity)
 
 # Create a global bot instance
 bot = SimpleCopyTrader()
