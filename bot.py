@@ -341,40 +341,41 @@ class SimpleCopyTrader:
         return []
     
     def log_activity(self, message, wallet_address=None, trade_data=None):
-    """Log activity for dashboard viewing"""
-    activity = {
-        'timestamp': datetime.now().isoformat(),
-        'message': message,
-        'wallet': wallet_address,
-        'trade_data': trade_data
-    }
-    
-    # Load existing activity log
-    activity_log = self.load_activity_log()
-    activity_log.append(activity)
-    
-    # Keep only last 100 activities
-    if len(activity_log) > 100:
-        activity_log = activity_log[-100:]
-    
-    # Save to persistent disk
-    self.save_activity_log(activity_log)
+        """Log activity for dashboard viewing"""
+        activity = {
+            'timestamp': datetime.now().isoformat(),
 
-def load_activity_log(self):
-    """Load activity log from disk"""
-    try:
-        with open('/opt/data/activity_log.json', 'r') as f:
-            return json.load(f)
-    except:
-        return []
+            'message': message,
+            'wallet': wallet_address,
+            'trade_data': trade_data
+        }
+        
+        # Load existing activity log
+        activity_log = self.load_activity_log()
+        activity_log.append(activity)
+        
+        # Keep only last 100 activities
+        if len(activity_log) > 100:
+            activity_log = activity_log[-100:]
+        
+        # Save to persistent disk
+        self.save_activity_log(activity_log)
 
-def save_activity_log(self, activity_log):
-    """Save activity log to disk"""
-    try:
-        with open('/opt/data/activity_log.json', 'w') as f:
-            json.dump(activity_log, f, indent=2)
-    except Exception as e:
-        print(f"⚠️ Could not save activity log: {e}")
+    def load_activity_log(self):
+        """Load activity log from disk"""
+        try:
+            with open('/opt/data/activity_log.json', 'r') as f:
+                return json.load(f)
+        except:
+            return []
+
+    def save_activity_log(self, activity_log):
+        """Save activity log to disk"""
+        try:
+            with open('/opt/data/activity_log.json', 'w') as f:
+                json.dump(activity_log, f, indent=2)
+        except Exception as e:
+            print(f"⚠️ Could not save activity log: {e}")
 
 # Create a global bot instance
 bot = SimpleCopyTrader()
