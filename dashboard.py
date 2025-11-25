@@ -170,9 +170,14 @@ def health():
 def run_bot():
     """Manually trigger the bot to check for trades"""
     try:
+        # Force reload config to get latest wallets
+        bot.load_config()
+        print("🚀 Starting bot monitoring...")
         bot.monitor_and_copy()
+        print("✅ Bot monitoring completed")
         return "✅ Bot executed successfully - check Render logs for API calls"
     except Exception as e:
+        print(f"❌ Bot error: {e}")
         return f"❌ Bot error: {str(e)}"
 
 @app.route('/api/positions')
