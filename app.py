@@ -4,21 +4,14 @@ import sqlite3
 from datetime import datetime
 import os
 import time
-import hmac
-import hashlib
-import base64
-import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
-@app.route('/test')
-def test():
-    return "Hello World! The app is working."
-
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-123')
 
+# Database setup
 def get_db_connection():
     conn = sqlite3.connect('trading_bot.db')
     conn.row_factory = sqlite3.Row
@@ -28,17 +21,25 @@ def init_db():
     conn = get_db_connection()
     c = conn.cursor()
     
+    # Wallets table
     c.execute('''CREATE TABLE IF NOT EXISTS wallets
                  (id INTEGER PRIMARY KEY, address TEXT, nickname TEXT, 
                   active INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
+    # Trades table
     c.execute('''CREATE TABLE IF NOT EXISTS trades
                  (id INTEGER PRIMARY KEY, wallet_id INTEGER, market_id TEXT,
                   outcome TEXT, shares REAL, price REAL, type TEXT,
                   timestamp TIMESTAMP, status TEXT)''')
     
+    # Bot settings table
     c.execute('''CREATE TABLE IF NOT EXISTS settings
                  (key TEXT PRIMARY KEY, value TEXT)''')
+    
+    # Initialize default settings
+    c.execute('''INSERT OR IGNORE INTO settings (key, value) VALUES 
+                 ('risk_percentage', '10'),
+                 ('test_mode', 'true')''')
     
     conn.commit()
     conn.close()
@@ -54,8 +55,9 @@ class PolymarketBot:
     def get_wallet_trades(self, wallet_address):
         """Get recent trades for a wallet address"""
         try:
-            # This is a placeholder - you'll need to implement actual Polymarket API calls
-            print(f"Would fetch trades for wallet: {wallet_address}")
+            # This would be replaced with actual Polymarket API calls
+            # For now, return empty array - this is just for testing
+            print(f"[DEBUG] Would fetch trades for: {wallet_address}")
             return []
         except Exception as e:
             print(f"Error fetching trades: {e}")
@@ -64,22 +66,44 @@ class PolymarketBot:
     def execute_trade(self, market_id, outcome, shares, price, trade_type):
         """Execute a trade on Polymarket"""
         if self.test_mode:
-            print(f"TEST MODE - Would execute: {trade_type} {shares} shares of {outcome} at ${price}")
+            print(f"[TEST] Would {trade_type} {shares} shares of {outcome} at ${price}")
             return {"status": "test_mode", "id": f"test_{int(time.time())}"}
         
-        # Real trading implementation would go here
-        return {"status": "real_trade_disabled", "message": "Real trading not implemented"}
+        # Real trading would go here
+        return {"status": "real_trade_disabled", "message": "Real trading not enabled"}
 
 bot = PolymarketBot()
+
+# Background trade copier (simple version)
+def trade_copier():
+    while True:
+        if bot.running:
+            try:
+                conn = get_db_connection()
+                c = conn.cursor()
+                c.execute("SELECT address, nickname FROM wallets WHERE active = 1")
+                wallets = c.fetchall()
+                conn.close()
+                
+                for wallet in wallets:
+                    address, nickname = wallet
+                    print(f"[BOT] Checking wallet: {nickname}")
+                    # This would actually copy trades in a real implementation
+                    
+            except Exception as e:
+                print(f"Error in trade copier: {e}")
+        
+        time.sleep(60)  # Check every minute
+
+# Start background thread
+import threading
+copier_thread = threading.Thread(target=trade_copier, daemon=True)
+copier_thread.start()
 
 # Routes
 @app.route('/')
 def dashboard():
-    try:
-        return render_template('dashboard.html')
-    except Exception as e:
-        return f"Error loading template: {str(e)}", 500
-
+    return render_template('dashboard.html')
 
 @app.route('/api/wallets', methods=['GET', 'POST'])
 def manage_wallets():
@@ -183,9 +207,14 @@ def get_analytics():
     c.execute("SELECT COUNT(*) FROM trades")
     total_trades = c.fetchone()[0]
     
+    c.execute("SELECT COUNT(*) FROM trades WHERE status = 'test_mode'")
+    test_trades = c.fetchone()[0]
+    
     analytics = {
         'total_wallets': total_wallets,
         'total_trades': total_trades,
+        'test_trades': test_trades,
+        'live_trades': total_trades - test_trades,
         'bot_status': 'RUNNING' if bot.running else 'STOPPED',
         'mode': 'TEST DRY RUN' if bot.test_mode else 'LIVE',
         'risk_percentage': bot.risk_percentage
@@ -193,6 +222,33 @@ def get_analytics():
     
     conn.close()
     return jsonify(analytics)
+
+# Simple wallet stats endpoint
+@app.route('/api/wallet-stats')
+def get_wallet_stats():
+    """Simple wallet performance stats"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT 
+            w.id,
+            w.nickname,
+            w.address,
+            w.active,
+            COUNT(t.id) as total_trades,
+            SUM(CASE WHEN t.status = 'test_mode' THEN 1 ELSE 0 END) as test_trades,
+            SUM(CASE WHEN t.status = 'executed' THEN 1 ELSE 0 END) as live_trades
+        FROM wallets w
+        LEFT JOIN trades t ON w.id = t.wallet_id
+        GROUP BY w.id, w.nickname, w.address
+        ORDER BY w.created_at DESC
+    ''')
+    
+    wallets = [dict(row) for row in c.fetchall()]
+    conn.close()
+    
+    return jsonify(wallets)
 
 @app.route('/health')
 def health_check():
