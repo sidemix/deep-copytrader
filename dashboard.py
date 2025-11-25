@@ -89,6 +89,15 @@ def update_risk():
     
     return redirect(url_for('index'))
 
+@app.route('/run_bot')
+def run_bot():
+    """Manually trigger the bot to check for trades"""
+    try:
+        bot.monitor_and_copy()
+        return "✅ Bot executed successfully - check Render logs for API calls"
+    except Exception as e:
+        return f"❌ Bot error: {str(e)}"
+
 @app.route('/api/positions')
 def get_positions():
     """API endpoint to get current positions"""
