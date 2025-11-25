@@ -4,10 +4,8 @@ import hashlib
 import time
 import json
 import os
-import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
-from datetime import datetime
 
 class Trade:
     def __init__(self, wallet_address: str, market_id: str, outcome_id: str, 
@@ -163,7 +161,42 @@ class SimpleCopyTrader:
         else:
             print(f"🎉 Successfully saved to: {', '.join(saved_locations)}")
     
-    # ... rest of your methods remain the same ...
+    def log_activity(self, message, wallet_address=None, trade_data=None):
+        """Log activity for dashboard viewing"""
+        activity = {
+            'timestamp': datetime.now().isoformat(),
+            'message': message,
+            'wallet': wallet_address,
+            'trade_data': trade_data
+        }
+        
+        # Load existing activity log
+        activity_log = self.load_activity_log()
+        activity_log.append(activity)
+        
+        # Keep only last 100 activities
+        if len(activity_log) > 100:
+            activity_log = activity_log[-100:]
+        
+        # Save to persistent disk
+        self.save_activity_log(activity_log)
+
+    def load_activity_log(self):
+        """Load activity log from disk"""
+        try:
+            with open('/opt/data/activity_log.json', 'r') as f:
+                return json.load(f)
+        except:
+            return []
+
+    def save_activity_log(self, activity_log):
+        """Save activity log to disk"""
+        try:
+            with open('/opt/data/activity_log.json', 'w') as f:
+                json.dump(activity_log, f, indent=2)
+        except Exception as e:
+            print(f"⚠️ Could not save activity log: {e}")
+
     def _generate_signature(self, timestamp: str, method: str, path: str, body: str = "") -> str:
         message = timestamp + method.upper() + path + body
         return hmac.new(
@@ -186,65 +219,66 @@ class SimpleCopyTrader:
         }
     
     def get_wallet_trades(self, wallet_address: str, minutes_back: int = 2) -> List[Trade]:
-    """Get VERY recent trades (last 2 minutes instead of 24 hours)"""
-    if not self.api_key:
-        print("❌ API credentials not configured")
-        return []
-        
-    try:
-        # Get orders from Polymarket API
-        path = "/orders"
-        headers = self._get_headers("GET", path)
-        response = requests.get(self.base_url + path, headers=headers, timeout=10)  # Faster timeout
-        response.raise_for_status()
-        
-        orders = response.json()
-        wallet_trades = []
-        
-        # Check only last 2 minutes for maximum freshness
-        since_time = datetime.utcnow() - timedelta(minutes=minutes_back)
-        
-        for order in orders:
-            order_owner = order.get('owner', '').lower()
-            if order_owner == wallet_address.lower():
-                order_time = datetime.fromisoformat(order['createdAt'].replace('Z', '+00:00'))
-                
-                # Only process VERY recent filled orders
-                if (order_time > since_time and 
-                    order.get('status') in ['FILLED', 'PARTIALLY_FILLED']):
-                    
-                    token_id = order.get('tokenId', '')
-                    market_id = token_id.split('-')[0] if '-' in token_id else token_id
-                    outcome_id = token_id.split('-')[1] if '-' in token_id else '0'
-                    
-                    trade = Trade(
-                        wallet_address=wallet_address,
-                        market_id=market_id,
-                        outcome_id=outcome_id,
-                        side='BUY' if order.get('side') == 'buy' else 'SELL',
-                        size=float(order.get('size', 0)),
-                        price=float(order.get('price', 0)),
-                        timestamp=order_time,
-                        trade_hash=order.get('id', '')
-                    )
-                    wallet_trades.append(trade)
-        
-        # Sort by most recent first
-        wallet_trades.sort(key=lambda x: x.timestamp, reverse=True)
-        
-        if wallet_trades:
-            latest_trade_time = wallet_trades[0].timestamp
-            delay = (datetime.utcnow() - latest_trade_time).total_seconds()
-            print(f"📊 Found {len(wallet_trades)} trades in last {minutes_back}min for {wallet_address}")
-            print(f"⏱️  Latest trade was {delay:.1f} seconds ago")
-        else:
-            print(f"📭 No recent trades found for {wallet_address}")
+        """Get VERY recent trades (last 2 minutes instead of 24 hours)"""
+        if not self.api_key:
+            print("❌ API credentials not configured")
+            return []
             
-        return wallet_trades
-        
-    except Exception as e:
-        print(f"❌ Error fetching trades for {wallet_address}: {e}")
-        return []
+        try:
+            # Get orders from Polymarket API
+            path = "/orders"
+            headers = self._get_headers("GET", path)
+            response = requests.get(self.base_url + path, headers=headers, timeout=10)  # Faster timeout
+            response.raise_for_status()
+            
+            orders = response.json()
+            wallet_trades = []
+            
+            # Check only last 2 minutes for maximum freshness
+            since_time = datetime.utcnow() - timedelta(minutes=minutes_back)
+            
+            for order in orders:
+                order_owner = order.get('owner', '').lower()
+                if order_owner == wallet_address.lower():
+                    order_time = datetime.fromisoformat(order['createdAt'].replace('Z', '+00:00'))
+                    
+                    # Only process VERY recent filled orders
+                    if (order_time > since_time and 
+                        order.get('status') in ['FILLED', 'PARTIALLY_FILLED']):
+                        
+                        # Parse token ID to get market and outcome
+                        token_id = order.get('tokenId', '')
+                        market_id = token_id.split('-')[0] if '-' in token_id else token_id
+                        outcome_id = token_id.split('-')[1] if '-' in token_id else '0'
+                        
+                        trade = Trade(
+                            wallet_address=wallet_address,
+                            market_id=market_id,
+                            outcome_id=outcome_id,
+                            side='BUY' if order.get('side') == 'buy' else 'SELL',
+                            size=float(order.get('size', 0)),
+                            price=float(order.get('price', 0)),
+                            timestamp=order_time,
+                            trade_hash=order.get('id', '')
+                        )
+                        wallet_trades.append(trade)
+            
+            # Sort by most recent first
+            wallet_trades.sort(key=lambda x: x.timestamp, reverse=True)
+            
+            if wallet_trades:
+                latest_trade_time = wallet_trades[0].timestamp
+                delay = (datetime.utcnow() - latest_trade_time).total_seconds()
+                print(f"📊 Found {len(wallet_trades)} trades in last {minutes_back}min for {wallet_address}")
+                print(f"⏱️  Latest trade was {delay:.1f} seconds ago")
+            else:
+                print(f"📭 No recent trades found for {wallet_address}")
+                
+            return wallet_trades
+            
+        except Exception as e:
+            print(f"❌ Error fetching trades for {wallet_address}: {e}")
+            return []
     
     def place_trade(self, trade: Trade, risk_percentage: float) -> bool:
         """Place a copy trade"""
@@ -252,6 +286,7 @@ class SimpleCopyTrader:
         
         if self.dry_run or self.config.get('test_mode', True):
             print(f"🧪 DRY RUN: Would copy {trade.side} {copy_size:.4f} @ {trade.price} for {trade.market_id}")
+            self.log_activity(f"🧪 DRY RUN: Would copy {trade.side} {copy_size:.4f} @ {trade.price}")
             
             # Update wallet stats
             wallet_data = self.config['copied_wallets'].get(trade.wallet_address, {})
@@ -285,6 +320,7 @@ class SimpleCopyTrader:
             
             result = response.json()
             print(f"✅ COPIED TRADE: {trade.side} {copy_size:.4f} @ {trade.price}")
+            self.log_activity(f"✅ COPIED TRADE: {trade.side} {copy_size:.4f} @ {trade.price}")
             
             # Update wallet stats for real trade
             wallet_data = self.config['copied_wallets'].get(trade.wallet_address, {})
@@ -297,119 +333,83 @@ class SimpleCopyTrader:
             
         except Exception as e:
             print(f"❌ Failed to place trade: {e}")
+            self.log_activity(f"❌ Failed to place trade: {e}")
             return False
     
     def monitor_and_copy(self):
-    """Main monitoring function - optimized for speed"""
-    self.log_activity("🤖 Bot monitoring started")
-    
-    if not self.config.get('bot_active', False):
-        self.log_activity("⏸️ Bot is not active - skipping monitoring")
-        print("⏸️ Bot is not active - skipping monitoring")
-        return
+        """Main monitoring function - optimized for speed"""
+        self.log_activity("🤖 Bot monitoring started")
         
-    active_wallets = [addr for addr, data in self.config.get('copied_wallets', {}).items() 
-                     if isinstance(data, dict) and data.get('active', True)]
-    
-    print(f"🔍 Monitoring {len(active_wallets)} active wallets...")
-    
-    for wallet_address in active_wallets:
-        wallet_data = self.config['copied_wallets'][wallet_address]
-        nickname = wallet_data.get('nickname', 'Unknown')
-        print(f"👀 Checking {nickname} ({wallet_address})...")
+        if not self.config.get('bot_active', False):
+            self.log_activity("⏸️ Bot is not active - skipping monitoring")
+            print("⏸️ Bot is not active - skipping monitoring")
+            return
+
+        active_wallets = [addr for addr, data in self.config.get('copied_wallets', {}).items() 
+                         if isinstance(data, dict) and data.get('active', True)]
         
-        # Get VERY recent trades (last 2 minutes)
-        recent_trades = self.get_wallet_trades(wallet_address, minutes_back=2)
+        print(f"🔍 Monitoring {len(active_wallets)} active wallets...")
         
-        for trade in recent_trades:
-            # Calculate how old this trade is
-            trade_age = (datetime.utcnow() - trade.timestamp).total_seconds()
+        for wallet_address in active_wallets:
+            wallet_data = self.config['copied_wallets'][wallet_address]
+            nickname = wallet_data.get('nickname', 'Unknown')
+            print(f"👀 Checking {nickname} ({wallet_address})...")
             
-            self.log_activity(
-                f"🆕 New trade detected: {trade.side} {trade.size} @ {trade.price} ({trade_age:.1f}s ago)",
-                wallet_address=wallet_address,
-                trade_data={'side': trade.side, 'size': trade.size, 'price': trade.price, 'age_seconds': trade_age}
-            )
+            # Get VERY recent trades (last 2 minutes)
+            recent_trades = self.get_wallet_trades(wallet_address, minutes_back=2)
             
-            risk_percentage = self.config.get('risk_percentage', 10)
-            print(f"🆕 Trade detected {trade_age:.1f}s ago: {trade.side} {trade.size} @ {trade.price}")
-            
-            # Only copy if trade is reasonably fresh (under 2 minutes old)
-            if trade_age < 120:  # 2 minutes
-                success = self.place_trade(trade, risk_percentage)
+            for trade in recent_trades:
+                # Calculate how old this trade is
+                trade_age = (datetime.utcnow() - trade.timestamp).total_seconds()
                 
-                if success:
-                    self.log_activity(f"✅ Copied trade from {nickname} ({trade_age:.1f}s delay)", wallet_address=wallet_address)
-                    print(f"✅ Successfully copied trade from {nickname} ({trade_age:.1f}s delay)")
+                self.log_activity(
+                    f"🆕 New trade detected: {trade.side} {trade.size} @ {trade.price} ({trade_age:.1f}s ago)",
+                    wallet_address=wallet_address,
+                    trade_data={'side': trade.side, 'size': trade.size, 'price': trade.price, 'age_seconds': trade_age}
+                )
+                
+                risk_percentage = self.config.get('risk_percentage', 10)
+                print(f"🆕 Trade detected {trade_age:.1f}s ago: {trade.side} {trade.size} @ {trade.price}")
+                
+                # Only copy if trade is reasonably fresh (under 2 minutes old)
+                if trade_age < 120:  # 2 minutes
+                    success = self.place_trade(trade, risk_percentage)
+                    
+                    if success:
+                        self.log_activity(f"✅ Copied trade from {nickname} ({trade_age:.1f}s delay)", wallet_address=wallet_address)
+                        print(f"✅ Successfully copied trade from {nickname} ({trade_age:.1f}s delay)")
+                    else:
+                        self.log_activity(f"❌ Failed to copy from {nickname}", wallet_address=wallet_address)
+                        print(f"❌ Failed to copy trade from {nickname}")
                 else:
-                    self.log_activity(f"❌ Failed to copy from {nickname}", wallet_address=wallet_address)
-                    print(f"❌ Failed to copy trade from {nickname}")
-            else:
-                print(f"⏰ Trade too old ({trade_age:.1f}s), skipping")
-    
-    self.log_activity("✅ Bot monitoring completed")
+                    print(f"⏰ Trade too old ({trade_age:.1f}s), skipping")
+        
+        self.log_activity("✅ Bot monitoring completed")
     
     def run_continuous(self, interval_seconds: int = 15):
-    """Run the bot continuously with 15-second checks"""
-    print(f"🤖 Starting copy trader bot (checking every {interval_seconds} seconds)")
-    print(f"📊 Mode: {'DRY RUN' if self.dry_run else 'LIVE TRADING'}")
-    print(f"🎯 Target: ~15-30 second delay after leader trades")
-    
-    check_count = 0
-    while True:
-        try:
-            check_count += 1
-            print(f"\n--- Check #{check_count} at {datetime.now().strftime('%H:%M:%S')} ---")
-            self.monitor_and_copy()
-            print(f"💤 Waiting {interval_seconds} seconds until next check...")
-            time.sleep(interval_seconds)
-        except KeyboardInterrupt:
-            print("🛑 Bot stopped by user")
-            break
-        except Exception as e:
-            print(f"❌ Error in main loop: {e}")
-            time.sleep(10)  # Shorter retry delay
+        """Run the bot continuously with 15-second checks"""
+        print(f"🤖 Starting copy trader bot (checking every {interval_seconds} seconds)")
+        print(f"📊 Mode: {'DRY RUN' if self.dry_run else 'LIVE TRADING'}")
+        print(f"🎯 Target: ~15-30 second delay after leader trades")
+        
+        check_count = 0
+        while True:
+            try:
+                check_count += 1
+                print(f"\n--- Check #{check_count} at {datetime.now().strftime('%H:%M:%S')} ---")
+                self.monitor_and_copy()
+                print(f"💤 Waiting {interval_seconds} seconds until next check...")
+                time.sleep(interval_seconds)
+            except KeyboardInterrupt:
+                print("🛑 Bot stopped by user")
+                break
+            except Exception as e:
+                print(f"❌ Error in main loop: {e}")
+                time.sleep(10)  # Shorter retry delay
 
     def load_my_positions(self):
         """Stub method for loading positions"""
         return []
-    
-    def log_activity(self, message, wallet_address=None, trade_data=None):
-        """Log activity for dashboard viewing"""
-        activity = {
-            'timestamp': datetime.now().isoformat(),
-
-            'message': message,
-            'wallet': wallet_address,
-            'trade_data': trade_data
-        }
-        
-        # Load existing activity log
-        activity_log = self.load_activity_log()
-        activity_log.append(activity)
-        
-        # Keep only last 100 activities
-        if len(activity_log) > 100:
-            activity_log = activity_log[-100:]
-        
-        # Save to persistent disk
-        self.save_activity_log(activity_log)
-
-    def load_activity_log(self):
-        """Load activity log from disk"""
-        try:
-            with open('/opt/data/activity_log.json', 'r') as f:
-                return json.load(f)
-        except:
-            return []
-
-    def save_activity_log(self, activity_log):
-        """Save activity log to disk"""
-        try:
-            with open('/opt/data/activity_log.json', 'w') as f:
-                json.dump(activity_log, f, indent=2)
-        except Exception as e:
-            print(f"⚠️ Could not save activity log: {e}")
 
 # Create a global bot instance
 bot = SimpleCopyTrader()
