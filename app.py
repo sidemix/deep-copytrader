@@ -11,6 +11,27 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-123')
 
+@app.route('/debug')
+def debug():
+    return "Flask is working! If you see this, the app is running correctly."
+
+@app.route('/debug-template')
+def debug_template():
+    try:
+        # Check if template folder exists
+        template_path = os.path.join(os.path.dirname(__file__), 'templates')
+        if not os.path.exists(template_path):
+            return f"Template folder not found at: {template_path}"
+        
+        # Check if dashboard.html exists
+        dashboard_path = os.path.join(template_path, 'dashboard.html')
+        if not os.path.exists(dashboard_path):
+            return f"dashboard.html not found at: {dashboard_path}"
+        
+        return f"Template folder found: {template_path}<br>dashboard.html found: {dashboard_path}"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 # Database setup
 def get_db_connection():
     conn = sqlite3.connect('trading_bot.db')
@@ -103,7 +124,15 @@ copier_thread.start()
 # Routes
 @app.route('/')
 def dashboard():
-    return render_template('dashboard.html')
+    try:
+        return render_template('dashboard.html')
+    except Exception as e:
+        return f"""
+        <h1>Error Loading Dashboard</h1>
+        <p>Error: {str(e)}</p>
+        <p><a href="/debug">Test Debug Route</a></p>
+        <p><a href="/debug-template">Test Template Debug</a></p>
+        """
 
 @app.route('/api/wallets', methods=['GET', 'POST'])
 def manage_wallets():
