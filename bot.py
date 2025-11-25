@@ -185,56 +185,66 @@ class SimpleCopyTrader:
             'POLYMARKET-API-PASSPHRASE': self.passphrase,
         }
     
-    def get_wallet_trades(self, wallet_address: str, hours_back: int = 24) -> List[Trade]:
-        """Get recent trades for a wallet using Polymarket API"""
-        if not self.api_key:
-            print("❌ API credentials not configured")
-            return []
-            
-        try:
-            # Get orders from Polymarket API
-            path = "/orders"
-            headers = self._get_headers("GET", path)
-            response = requests.get(self.base_url + path, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            orders = response.json()
-            wallet_trades = []
-            
-            since_time = datetime.utcnow() - timedelta(hours=hours_back)
-            
-            for order in orders:
-                order_owner = order.get('owner', '').lower()
-                if order_owner == wallet_address.lower():
-                    order_time = datetime.fromisoformat(order['createdAt'].replace('Z', '+00:00'))
+    def get_wallet_trades(self, wallet_address: str, minutes_back: int = 2) -> List[Trade]:
+    """Get VERY recent trades (last 2 minutes instead of 24 hours)"""
+    if not self.api_key:
+        print("❌ API credentials not configured")
+        return []
+        
+    try:
+        # Get orders from Polymarket API
+        path = "/orders"
+        headers = self._get_headers("GET", path)
+        response = requests.get(self.base_url + path, headers=headers, timeout=10)  # Faster timeout
+        response.raise_for_status()
+        
+        orders = response.json()
+        wallet_trades = []
+        
+        # Check only last 2 minutes for maximum freshness
+        since_time = datetime.utcnow() - timedelta(minutes=minutes_back)
+        
+        for order in orders:
+            order_owner = order.get('owner', '').lower()
+            if order_owner == wallet_address.lower():
+                order_time = datetime.fromisoformat(order['createdAt'].replace('Z', '+00:00'))
+                
+                # Only process VERY recent filled orders
+                if (order_time > since_time and 
+                    order.get('status') in ['FILLED', 'PARTIALLY_FILLED']):
                     
-                    # Only process filled orders within our time range
-                    if (order_time > since_time and 
-                        order.get('status') in ['FILLED', 'PARTIALLY_FILLED']):
-                        
-                        # Parse token ID to get market and outcome
-                        token_id = order.get('tokenId', '')
-                        market_id = token_id.split('-')[0] if '-' in token_id else token_id
-                        outcome_id = token_id.split('-')[1] if '-' in token_id else '0'
-                        
-                        trade = Trade(
-                            wallet_address=wallet_address,
-                            market_id=market_id,
-                            outcome_id=outcome_id,
-                            side='BUY' if order.get('side') == 'buy' else 'SELL',
-                            size=float(order.get('size', 0)),
-                            price=float(order.get('price', 0)),
-                            timestamp=order_time,
-                            trade_hash=order.get('id', '')
-                        )
-                        wallet_trades.append(trade)
+                    token_id = order.get('tokenId', '')
+                    market_id = token_id.split('-')[0] if '-' in token_id else token_id
+                    outcome_id = token_id.split('-')[1] if '-' in token_id else '0'
+                    
+                    trade = Trade(
+                        wallet_address=wallet_address,
+                        market_id=market_id,
+                        outcome_id=outcome_id,
+                        side='BUY' if order.get('side') == 'buy' else 'SELL',
+                        size=float(order.get('size', 0)),
+                        price=float(order.get('price', 0)),
+                        timestamp=order_time,
+                        trade_hash=order.get('id', '')
+                    )
+                    wallet_trades.append(trade)
+        
+        # Sort by most recent first
+        wallet_trades.sort(key=lambda x: x.timestamp, reverse=True)
+        
+        if wallet_trades:
+            latest_trade_time = wallet_trades[0].timestamp
+            delay = (datetime.utcnow() - latest_trade_time).total_seconds()
+            print(f"📊 Found {len(wallet_trades)} trades in last {minutes_back}min for {wallet_address}")
+            print(f"⏱️  Latest trade was {delay:.1f} seconds ago")
+        else:
+            print(f"📭 No recent trades found for {wallet_address}")
             
-            print(f"📊 Found {len(wallet_trades)} recent trades for {wallet_address}")
-            return wallet_trades
-            
-        except Exception as e:
-            print(f"❌ Error fetching trades for {wallet_address}: {e}")
-            return []
+        return wallet_trades
+        
+    except Exception as e:
+        print(f"❌ Error fetching trades for {wallet_address}: {e}")
+        return []
     
     def place_trade(self, trade: Trade, risk_percentage: float) -> bool:
         """Place a copy trade"""
@@ -290,51 +300,75 @@ class SimpleCopyTrader:
             return False
     
     def monitor_and_copy(self):
-        """Main monitoring function - check all active wallets and copy trades"""
-        if not self.config.get('bot_active', False):
-            print("⏸️ Bot is not active - skipping monitoring")
-            return
-            
-        print(f"🔍 Monitoring {len(self.config.get('copied_wallets', {}))} wallets...")
+    """Main monitoring function - optimized for speed"""
+    self.log_activity("🤖 Bot monitoring started")
+    
+    if not self.config.get('bot_active', False):
+        self.log_activity("⏸️ Bot is not active - skipping monitoring")
+        print("⏸️ Bot is not active - skipping monitoring")
+        return
         
-        for wallet_address, wallet_data in self.config.get('copied_wallets', {}).items():
-            if not isinstance(wallet_data, dict) or not wallet_data.get('active', True):
-                continue
-                
-            nickname = wallet_data.get('nickname', 'Unknown')
-            print(f"👀 Checking {nickname} ({wallet_address})...")
+    active_wallets = [addr for addr, data in self.config.get('copied_wallets', {}).items() 
+                     if isinstance(data, dict) and data.get('active', True)]
+    
+    print(f"🔍 Monitoring {len(active_wallets)} active wallets...")
+    
+    for wallet_address in active_wallets:
+        wallet_data = self.config['copied_wallets'][wallet_address]
+        nickname = wallet_data.get('nickname', 'Unknown')
+        print(f"👀 Checking {nickname} ({wallet_address})...")
+        
+        # Get VERY recent trades (last 2 minutes)
+        recent_trades = self.get_wallet_trades(wallet_address, minutes_back=2)
+        
+        for trade in recent_trades:
+            # Calculate how old this trade is
+            trade_age = (datetime.utcnow() - trade.timestamp).total_seconds()
             
-            recent_trades = self.get_wallet_trades(wallet_address)
+            self.log_activity(
+                f"🆕 New trade detected: {trade.side} {trade.size} @ {trade.price} ({trade_age:.1f}s ago)",
+                wallet_address=wallet_address,
+                trade_data={'side': trade.side, 'size': trade.size, 'price': trade.price, 'age_seconds': trade_age}
+            )
             
-            for trade in recent_trades:
-                # In a real implementation, you'd check if we already copied this trade
-                # For now, we'll copy all new trades
-                risk_percentage = self.config.get('risk_percentage', 10)
-                print(f"🆕 New trade detected: {trade.side} {trade.size} @ {trade.price}")
-                
+            risk_percentage = self.config.get('risk_percentage', 10)
+            print(f"🆕 Trade detected {trade_age:.1f}s ago: {trade.side} {trade.size} @ {trade.price}")
+            
+            # Only copy if trade is reasonably fresh (under 2 minutes old)
+            if trade_age < 120:  # 2 minutes
                 success = self.place_trade(trade, risk_percentage)
                 
                 if success:
-                    print(f"✅ Successfully copied trade from {nickname}")
+                    self.log_activity(f"✅ Copied trade from {nickname} ({trade_age:.1f}s delay)", wallet_address=wallet_address)
+                    print(f"✅ Successfully copied trade from {nickname} ({trade_age:.1f}s delay)")
                 else:
+                    self.log_activity(f"❌ Failed to copy from {nickname}", wallet_address=wallet_address)
                     print(f"❌ Failed to copy trade from {nickname}")
+            else:
+                print(f"⏰ Trade too old ({trade_age:.1f}s), skipping")
     
-    def run_continuous(self, interval_minutes: int = 5):
-        """Run the bot continuously"""
-        print(f"🤖 Starting copy trader bot (checking every {interval_minutes} minutes)")
-        print(f"📊 Mode: {'DRY RUN' if self.dry_run else 'LIVE TRADING'}")
-        
-        while True:
-            try:
-                self.monitor_and_copy()
-                print(f"💤 Waiting {interval_minutes} minutes until next check...")
-                time.sleep(interval_minutes * 60)
-            except KeyboardInterrupt:
-                print("🛑 Bot stopped by user")
-                break
-            except Exception as e:
-                print(f"❌ Error in main loop: {e}")
-                time.sleep(60)  # Wait 1 minute before retrying
+    self.log_activity("✅ Bot monitoring completed")
+    
+    def run_continuous(self, interval_seconds: int = 15):
+    """Run the bot continuously with 15-second checks"""
+    print(f"🤖 Starting copy trader bot (checking every {interval_seconds} seconds)")
+    print(f"📊 Mode: {'DRY RUN' if self.dry_run else 'LIVE TRADING'}")
+    print(f"🎯 Target: ~15-30 second delay after leader trades")
+    
+    check_count = 0
+    while True:
+        try:
+            check_count += 1
+            print(f"\n--- Check #{check_count} at {datetime.now().strftime('%H:%M:%S')} ---")
+            self.monitor_and_copy()
+            print(f"💤 Waiting {interval_seconds} seconds until next check...")
+            time.sleep(interval_seconds)
+        except KeyboardInterrupt:
+            print("🛑 Bot stopped by user")
+            break
+        except Exception as e:
+            print(f"❌ Error in main loop: {e}")
+            time.sleep(10)  # Shorter retry delay
 
     def load_my_positions(self):
         """Stub method for loading positions"""
