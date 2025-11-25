@@ -2,157 +2,20 @@
 <html>
 <head>
     <title>Polymarket Copy Trading Bot</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        :root {
-            --primary: #2563eb;
-            --danger: #dc2626;
-            --success: #16a34a;
-            --warning: #d97706;
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --text: #1e293b;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .nav {
-            background: var(--card);
-            padding: 1rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-            display: flex;
-            gap: 2rem;
-            flex-wrap: wrap;
-        }
-        
-        .nav a {
-            color: var(--text);
-            text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            transition: background 0.2s;
-        }
-        
-        .nav a:hover {
-            background: var(--bg);
-        }
-        
-        .card {
-            background: var(--card);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-        
-        .status-running { background: var(--success); color: white; }
-        .status-stopped { background: var(--danger); color: white; }
-        .status-test { background: var(--warning); color: white; }
-        
-        button {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-        
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-success { background: var(--success); color: white; }
-        
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-        
-        input, select {
-            padding: 0.75rem;
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-            width: 100%;
-            margin-bottom: 1rem;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-        }
-        
-        th, td {
-            padding: 1rem;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        th {
-            background: var(--bg);
-            font-weight: 600;
-        }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        
-        .alert {
-            padding: 1rem;
-            border-radius: 5px;
-            margin: 1rem 0;
-        }
-        
-        .alert-warning {
-            background: #fef3c7;
-            border: 1px solid #f59e0b;
-            color: #92400e;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        
-        .stat-card {
-            background: var(--bg);
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-        
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: var(--primary);
-        }
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .nav { background: #333; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        .nav a { color: white; text-decoration: none; padding: 10px 15px; }
+        .card { background: #f9f9f9; padding: 20px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #2563eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; }
+        .btn-start { background: #16a34a; color: white; }
+        .btn-stop { background: #dc2626; color: white; }
+        .btn-test { background: #d97706; color: white; }
+        .status { padding: 5px 10px; border-radius: 15px; color: white; font-weight: bold; }
+        .status-running { background: #16a34a; }
+        .status-stopped { background: #dc2626; }
+        .status-test { background: #d97706; }
     </style>
 </head>
 <body>
@@ -161,99 +24,49 @@
             <a href="#overview">Overview</a>
             <a href="#analytics">Analytics</a>
             <a href="#wallets">Wallets</a>
-            <a href="#risk">Risk Management</a>
+            <a href="#risk">Risk</a>
         </div>
 
-        <!-- Overview Section -->
         <div id="overview" class="card">
-            <h2>Polymarket Copy Trading Bot</h2>
-            <div class="alert alert-warning">
-                <strong>Note:</strong> This is running in TEST mode. No real trades are being executed.
-            </div>
-            
-            <div id="bot-status" style="margin: 1rem 0;">
-                <span id="status-text" class="status-badge status-stopped">Status: STOPPED</span>
-                <span id="mode-text" class="status-badge status-test">Mode: TEST DRY RUN</span>
-            </div>
-            
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                <button class="btn-success" onclick="startBot(true)">Start Test Mode</button>
-                <button class="btn-primary" onclick="startBot(false)">Start Live Mode</button>
-                <button class="btn-danger" onclick="stopBot()">Stop Bot</button>
+            <h1>Polymarket Copy Trading Bot</h1>
+            <div class="card">
+                <h3>Bot Status</h3>
+                <div id="bot-status">
+                    <span id="status-text" class="status status-stopped">Status: STOPPED</span>
+                    <span id="mode-text" class="status status-test">Mode: TEST DRY RUN</span>
+                </div>
+                <button class="btn-test" onclick="startBot(true)">Start Test Mode</button>
+                <button class="btn-start" onclick="startBot(false)">Start Live Mode</button>
+                <button class="btn-stop" onclick="stopBot()">Stop Bot</button>
             </div>
         </div>
 
-        <!-- Analytics Section -->
         <div id="analytics" class="card">
-            <h2>Analytics & Performance</h2>
+            <h3>Analytics</h3>
             <div id="analytics-content">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number" id="total-wallets">0</div>
-                        <div>Total Wallets</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="total-trades">0</div>
-                        <div>Total Trades</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="test-trades">0</div>
-                        <div>Test Trades</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="risk-percent">10%</div>
-                        <div>Risk Percentage</div>
-                    </div>
-                </div>
-                
-                <h3>Wallet Performance</h3>
-                <div id="wallet-stats">
-                    <p>Loading wallet statistics...</p>
-                </div>
+                <p>Loading analytics...</p>
             </div>
         </div>
 
-        <!-- Add this new section after the Analytics section -->
-<div id="wallet-performance" class="card">
-    <h2>Wallet Performance Dashboard</h2>
-    <div id="performance-content">
-        <div class="performance-stats">
-            <div class="stats-grid" id="wallet-stats-grid">
-                <!-- Wallet performance cards will be loaded here -->
-            </div>
-        </div>
-        
-        <div class="wallet-details" id="wallet-details">
-            <!-- Detailed wallet performance will be shown here -->
-        </div>
-    </div>
-</div>
-
-        <!-- Wallets Section -->
         <div id="wallets" class="card">
-            <h2>Wallet Management</h2>
-            
-            <div class="card" style="background: var(--bg);">
-                <h3>Add New Wallet to Copy</h3>
-                <input type="text" id="wallet-address" placeholder="Enter Polymarket wallet address (0x...)" style="font-family: monospace;">
-                <input type="text" id="wallet-nickname" placeholder="Give this wallet a nickname">
-                <button class="btn-primary" onclick="addWallet()">Add Wallet</button>
+            <h3>Wallet Management</h3>
+            <div class="card">
+                <h4>Add New Wallet</h4>
+                <input type="text" id="wallet-address" placeholder="Wallet Address (0x...)" style="width: 300px; padding: 8px; margin: 5px;">
+                <input type="text" id="wallet-nickname" placeholder="Nickname" style="width: 200px; padding: 8px; margin: 5px;">
+                <button onclick="addWallet()">Add Wallet</button>
             </div>
-            
-            <h3>Currently Tracking Wallets</h3>
             <div id="wallets-list">
                 <p>Loading wallets...</p>
             </div>
         </div>
 
-        <!-- Risk Management Section -->
         <div id="risk" class="card">
-            <h2>Risk Management</h2>
-            <div style="max-width: 400px;">
-                <label><strong>Risk Percentage per Trade:</strong></label>
-                <input type="number" id="risk-percentage" min="1" max="100" value="10" style="margin: 0.5rem 0;">
-                <small>What percentage of each trade to copy (1-100%)</small>
-                <button class="btn-primary" onclick="updateRisk()" style="margin-top: 1rem; width: 100%;">Update Risk Setting</button>
+            <h3>Risk Management</h3>
+            <div class="card">
+                <label>Risk Percentage: </label>
+                <input type="number" id="risk-percentage" min="1" max="100" value="10" style="padding: 8px; margin: 5px;">
+                <button onclick="updateRisk()">Update Risk</button>
             </div>
         </div>
     </div>
@@ -263,52 +76,28 @@
         loadBotStatus();
         loadAnalytics();
         loadWallets();
-        loadSettings();
 
-        function updateStatusDisplay() {
-            const statusElement = document.getElementById('status-text');
-            const modeElement = document.getElementById('mode-text');
-            
-            // This would be updated based on actual API responses
+        function loadBotStatus() {
             fetch('/api/bot/status')
                 .then(r => r.json())
                 .then(data => {
-                    statusElement.textContent = `Status: ${data.running ? 'RUNNING' : 'STOPPED'}`;
-                    statusElement.className = `status-badge ${data.running ? 'status-running' : 'status-stopped'}`;
-                    
-                    modeElement.textContent = `Mode: ${data.test_mode ? 'TEST DRY RUN' : 'LIVE'}`;
-                    modeElement.className = `status-badge ${data.test_mode ? 'status-test' : 'status-running'}`;
+                    document.getElementById('status-text').textContent = `Status: ${data.running ? 'RUNNING' : 'STOPPED'}`;
+                    document.getElementById('status-text').className = `status ${data.running ? 'status-running' : 'status-stopped'}`;
+                    document.getElementById('mode-text').textContent = `Mode: ${data.test_mode ? 'TEST DRY RUN' : 'LIVE'}`;
                 });
-        }
-
-        function loadBotStatus() {
-            updateStatusDisplay();
         }
 
         function loadAnalytics() {
             fetch('/api/analytics')
                 .then(r => r.json())
                 .then(data => {
-                    document.getElementById('total-wallets').textContent = data.total_wallets;
-                    document.getElementById('total-trades').textContent = data.total_trades;
-                    document.getElementById('test-trades').textContent = data.test_trades;
-                    document.getElementById('risk-percent').textContent = data.risk_percentage + '%';
-                    
-                    // Update wallet stats
-                    if (data.wallet_stats && data.wallet_stats.length > 0) {
-                        let html = '<table><tr><th>Wallet</th><th>Trade Count</th></tr>';
-                        data.wallet_stats.forEach(wallet => {
-                            html += `<tr><td>${wallet.nickname}</td><td>${wallet.trade_count}</td></tr>`;
-                        });
-                        html += '</table>';
-                        document.getElementById('wallet-stats').innerHTML = html;
-                    } else {
-                        document.getElementById('wallet-stats').innerHTML = '<p>No trades recorded yet</p>';
-                    }
-                })
-                .catch(err => {
-                    console.error('Error loading analytics:', err);
-                    document.getElementById('analytics-content').innerHTML = '<p>Error loading analytics</p>';
+                    document.getElementById('analytics-content').innerHTML = `
+                        <p>Total Wallets: ${data.total_wallets}</p>
+                        <p>Total Trades: ${data.total_trades}</p>
+                        <p>Test Trades: ${data.test_trades}</p>
+                        <p>Live Trades: ${data.live_trades}</p>
+                        <p>Risk Percentage: ${data.risk_percentage}%</p>
+                    `;
                 });
         }
 
@@ -317,334 +106,78 @@
                 .then(r => r.json())
                 .then(wallets => {
                     if (wallets.length === 0) {
-                        document.getElementById('wallets-list').innerHTML = '<p>No wallets added yet. Add your first wallet above.</p>';
+                        document.getElementById('wallets-list').innerHTML = '<p>No wallets added yet</p>';
                         return;
                     }
                     
-                    let html = '<table><tr><th>Nickname</th><th>Address</th><th>Added</th><th>Actions</th></tr>';
+                    let html = '<table style="width: 100%; border-collapse: collapse;"><tr><th>Nickname</th><th>Address</th><th>Actions</th></tr>';
                     wallets.forEach(wallet => {
-                        const shortAddress = wallet.address.length > 12 ? 
-                            wallet.address.substring(0, 6) + '...' + wallet.address.substring(wallet.address.length - 6) : 
-                            wallet.address;
-                            
                         html += `
                             <tr>
-                                <td><strong>${wallet.nickname}</strong></td>
-                                <td style="font-family: monospace;">${shortAddress}</td>
-                                <td>${new Date(wallet.created_at).toLocaleDateString()}</td>
-                                <td><button class="btn-danger" onclick="deleteWallet(${wallet.id})">Remove</button></td>
+                                <td>${wallet.nickname}</td>
+                                <td style="font-family: monospace;">${wallet.address.substring(0, 10)}...</td>
+                                <td><button onclick="deleteWallet(${wallet.id})">Delete</button></td>
                             </tr>
                         `;
                     });
                     html += '</table>';
                     document.getElementById('wallets-list').innerHTML = html;
-                })
-                .catch(err => {
-                    console.error('Error loading wallets:', err);
-                    document.getElementById('wallets-list').innerHTML = '<p>Error loading wallets</p>';
-                });
-        }
-
-        function loadSettings() {
-            fetch('/api/settings')
-                .then(r => r.json())
-                .then(settings => {
-                    if (settings.risk_percentage) {
-                        document.getElementById('risk-percentage').value = settings.risk_percentage;
-                    }
                 });
         }
 
         function addWallet() {
-            const address = document.getElementById('wallet-address').value.trim();
-            const nickname = document.getElementById('wallet-nickname').value.trim();
-            
-            if (!address) {
-                alert('Please enter a wallet address');
-                return;
-            }
-            
-            if (!nickname) {
-                alert('Please enter a nickname for this wallet');
-                return;
-            }
+            const address = document.getElementById('wallet-address').value;
+            const nickname = document.getElementById('wallet-nickname').value;
             
             fetch('/api/wallets', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({address, nickname})
-            })
-            .then(r => r.json())
-            .then(result => {
-                if (result.status === 'success') {
-                    document.getElementById('wallet-address').value = '';
-                    document.getElementById('wallet-nickname').value = '';
-                    loadWallets();
-                    loadAnalytics();
-                    alert('Wallet added successfully!');
-                } else {
-                    alert('Error: ' + result.message);
-                }
-            })
-            .catch(err => {
-                console.error('Error adding wallet:', err);
-                alert('Error adding wallet');
+            }).then(() => {
+                document.getElementById('wallet-address').value = '';
+                document.getElementById('wallet-nickname').value = '';
+                loadWallets();
+                loadAnalytics();
             });
         }
 
         function deleteWallet(walletId) {
-            if (!confirm('Are you sure you want to remove this wallet?')) {
-                return;
-            }
-            
             fetch(`/api/wallets/${walletId}`, {method: 'DELETE'})
                 .then(() => {
                     loadWallets();
                     loadAnalytics();
-                })
-                .catch(err => {
-                    console.error('Error deleting wallet:', err);
-                    alert('Error deleting wallet');
                 });
         }
 
         function startBot(testMode) {
-            const mode = testMode ? 'TEST' : 'LIVE';
-            if (!testMode && !confirm(`WARNING: Starting in LIVE mode will execute real trades with real money. Are you sure?`)) {
-                return;
-            }
-            
             fetch('/api/bot/start', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({test_mode: testMode})
-            })
-            .then(r => r.json())
-            .then(result => {
-                alert(result.message);
-                updateStatusDisplay();
+            }).then(() => {
+                loadBotStatus();
                 loadAnalytics();
-            })
-            .catch(err => {
-                console.error('Error starting bot:', err);
-                alert('Error starting bot');
             });
         }
 
         function stopBot() {
             fetch('/api/bot/stop', {method: 'POST'})
-                .then(r => r.json())
-                .then(result => {
-                    alert(result.message);
-                    updateStatusDisplay();
+                .then(() => {
+                    loadBotStatus();
                     loadAnalytics();
-                })
-                .catch(err => {
-                    console.error('Error stopping bot:', err);
-                    alert('Error stopping bot');
                 });
         }
 
         function updateRisk() {
-            const risk = parseInt(document.getElementById('risk-percentage').value);
-            if (risk < 1 || risk > 100) {
-                alert('Risk percentage must be between 1 and 100');
-                return;
-            }
-            
+            const risk = document.getElementById('risk-percentage').value;
             fetch('/api/settings', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({risk_percentage: risk})
-            })
-            .then(r => r.json())
-            .then(result => {
-                alert('Risk setting updated successfully');
+                body: JSON.stringify({risk_percentage: parseInt(risk)})
+            }).then(() => {
                 loadAnalytics();
-            })
-            .catch(err => {
-                console.error('Error updating risk:', err);
-                alert('Error updating risk setting');
             });
         }
-
-        // Auto-refresh data every 30 seconds when bot is running
-        setInterval(() => {
-            updateStatusDisplay();
-            loadAnalytics();
-        }, 30000);
-        // Wallet Performance Functions
-function loadWalletPerformance() {
-    fetch('/api/wallets/performance')
-        .then(r => r.json())
-        .then(wallets => {
-            if (wallets.length === 0) {
-                document.getElementById('wallet-stats-grid').innerHTML = '<p>No wallets to track yet</p>';
-                return;
-            }
-
-            let html = '';
-            wallets.forEach(wallet => {
-                const profitColor = wallet.total_profit > 0 ? 'color: var(--success);' : 
-                                  wallet.total_profit < 0 ? 'color: var(--danger);' : '';
-                const statusClass = wallet.active ? 'status-running' : 'status-stopped';
-                
-                html += `
-                    <div class="card" style="margin: 10px 0;">
-                        <div style="display: flex; justify-content: between; align-items: center;">
-                            <div>
-                                <h4>${wallet.nickname}</h4>
-                                <small style="font-family: monospace;">${wallet.address.substring(0, 8)}...</small>
-                            </div>
-                            <span class="status-badge ${statusClass}">
-                                ${wallet.active ? 'ACTIVE' : 'ARCHIVED'}
-                            </span>
-                        </div>
-                        
-                        <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin: 1rem 0;">
-                            <div class="stat-card">
-                                <div class="stat-number">${wallet.total_trades || 0}</div>
-                                <div>Total Trades</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-number" style="${profitColor}">
-                                    $${(wallet.total_profit || 0).toFixed(2)}
-                                </div>
-                                <div>Total P&L</div>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                            <button class="btn-primary" onclick="viewWalletDetails(${wallet.id})">
-                                View Details
-                            </button>
-                            ${wallet.active ? 
-                                `<button class="btn-danger" onclick="archiveWallet(${wallet.id})">
-                                    Archive
-                                </button>` :
-                                `<button class="btn-success" onclick="activateWallet(${wallet.id})">
-                                    Activate
-                                </button>`
-                            }
-                        </div>
-                    </div>
-                `;
-            });
-            
-            document.getElementById('wallet-stats-grid').innerHTML = html;
-        })
-        .catch(err => {
-            console.error('Error loading wallet performance:', err);
-            document.getElementById('wallet-stats-grid').innerHTML = '<p>Error loading performance data</p>';
-        });
-}
-
-function viewWalletDetails(walletId) {
-    fetch(`/api/wallets/${walletId}/performance`)
-        .then(r => r.json())
-        .then(performance => {
-            const stats = performance.stats;
-            let html = `
-                <h3>${performance.wallet_info.nickname} - Detailed Performance</h3>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-number">${stats.total_trades}</div>
-                        <div>Total Trades</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${stats.win_rate}%</div>
-                        <div>Win Rate</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" style="color: ${stats.total_profit > 0 ? 'var(--success)' : 'var(--danger)'}">
-                            $${stats.total_profit.toFixed(2)}
-                        </div>
-                        <div>Total Profit</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${stats.profitability}</div>
-                        <div>Performance</div>
-                    </div>
-                </div>
-                
-                <h4>Recent Trades</h4>
-            `;
-            
-            if (performance.recent_trades.length > 0) {
-                html += '<table><tr><th>Market</th><th>Type</th><th>Shares</th><th>P&L</th><th>Date</th></tr>';
-                performance.recent_trades.forEach(trade => {
-                    const profitColor = trade.profit_loss > 0 ? 'color: var(--success);' : 
-                                      trade.profit_loss < 0 ? 'color: var(--danger);' : '';
-                    html += `
-                        <tr>
-                            <td>${trade.market_id}</td>
-                            <td>${trade.type}</td>
-                            <td>${trade.shares}</td>
-                            <td style="${profitColor}">$${trade.profit_loss.toFixed(2)}</td>
-                            <td>${new Date(trade.timestamp).toLocaleDateString()}</td>
-                        </tr>
-                    `;
-                });
-                html += '</table>';
-            } else {
-                html += '<p>No trades recorded yet</p>';
-            }
-            
-            document.getElementById('wallet-details').innerHTML = html;
-        })
-        .catch(err => {
-            console.error('Error loading wallet details:', err);
-            document.getElementById('wallet-details').innerHTML = '<p>Error loading wallet details</p>';
-        });
-}
-
-function archiveWallet(walletId) {
-    if (!confirm('Are you sure you want to archive this wallet? The bot will stop copying its trades.')) {
-        return;
-    }
-    
-    fetch(`/api/wallets/${walletId}/archive`, { method: 'POST' })
-        .then(r => r.json())
-        .then(result => {
-            alert(result.message);
-            loadWalletPerformance();
-        })
-        .catch(err => {
-            console.error('Error archiving wallet:', err);
-            alert('Error archiving wallet');
-        });
-}
-
-function activateWallet(walletId) {
-    fetch(`/api/wallets/${walletId}/activate`, { method: 'POST' })
-        .then(r => r.json())
-        .then(result => {
-            alert(result.message);
-            loadWalletPerformance();
-        })
-        .catch(err => {
-            console.error('Error activating wallet:', err);
-            alert('Error activating wallet');
-        });
-}
-
-// Add to your existing load functions
-function loadAllData() {
-    loadBotStatus();
-    loadAnalytics();
-    loadWallets();
-    loadSettings();
-    loadWalletPerformance(); // NEW - load performance data
-}
-
-// Update your auto-refresh to include performance data
-setInterval(() => {
-    if (document.getElementById('status-text').textContent.includes('RUNNING')) {
-        loadBotStatus();
-        loadAnalytics();
-        loadWalletPerformance();
-    }
-}, 30000);
     </script>
 </body>
 </html>

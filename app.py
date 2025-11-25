@@ -125,14 +125,29 @@ copier_thread.start()
 @app.route('/')
 def dashboard():
     try:
+        # Add detailed debugging
+        template_path = os.path.join(os.path.dirname(__file__), 'templates', 'dashboard.html')
+        print(f"[DEBUG] Looking for template at: {template_path}")
+        print(f"[DEBUG] Template exists: {os.path.exists(template_path)}")
+        
+        if os.path.exists(template_path):
+            with open(template_path, 'r') as f:
+                content = f.read()
+                print(f"[DEBUG] Template file size: {len(content)} bytes")
+                if len(content) == 0:
+                    print("[DEBUG] Template file is EMPTY!")
+        
         return render_template('dashboard.html')
     except Exception as e:
+        print(f"[ERROR] Template rendering failed: {str(e)}")
         return f"""
         <h1>Error Loading Dashboard</h1>
         <p>Error: {str(e)}</p>
         <p><a href="/debug">Test Debug Route</a></p>
         <p><a href="/debug-template">Test Template Debug</a></p>
+        <p>Check Render logs for detailed error messages</p>
         """
+        
 
 @app.route('/api/wallets', methods=['GET', 'POST'])
 def manage_wallets():
