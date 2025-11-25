@@ -2,8 +2,24 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 import json
 from datetime import datetime
 from bot import bot
+import os
 
 app = Flask(__name__)
+
+def get_wallets_from_env():
+    """Get wallets from environment variable as backup"""
+    wallets_json = os.getenv('WALLETS', '{}')
+    try:
+        return json.loads(wallets_json)
+    except:
+        return {}
+
+def save_wallets_to_env(wallets):
+    """Tell user how to update environment variable"""
+    wallets_json = json.dumps(wallets)
+    print(f"🔧 MANUAL STEP: Update WALLETS environment variable to:")
+    print(wallets_json)
+    return wallets_json
 
 @app.route('/')
 def index():
@@ -42,6 +58,11 @@ def add_wallet():
             'added_date': datetime.now().isoformat()
         }
         bot.save_config()
+        
+        # Also save to environment variable backup
+        env_wallets = get_wallets_from_env()
+        env_wallets[address] = bot.config['copied_wallets'][address]
+        save_wallets_to_env(env_wallets)
     
     return redirect(url_for('index'))
 
@@ -53,6 +74,12 @@ def toggle_wallet(address):
         if isinstance(wallet_data, dict):
             wallet_data['active'] = not wallet_data.get('active', True)
             bot.save_config()
+            
+            # Update environment variable backup
+            env_wallets = get_wallets_from_env()
+            if address in env_wallets:
+                env_wallets[address]['active'] = wallet_data['active']
+                save_wallets_to_env(env_wallets)
     
     return redirect(url_for('index'))
 
@@ -84,6 +111,12 @@ def remove_wallet(address):
     if address in bot.config['copied_wallets']:
         del bot.config['copied_wallets'][address]
         bot.save_config()
+        
+        # Update environment variable backup
+        env_wallets = get_wallets_from_env()
+        if address in env_wallets:
+            del env_wallets[address]
+            save_wallets_to_env(env_wallets)
     
     return redirect(url_for('index'))
 
@@ -111,37 +144,27 @@ def update_risk():
     
     return redirect(url_for('index'))
 
-@app.route('/debug_disk')
-def debug_disk():
-    """Check if persistent disk is accessible"""
+@app.route('/debug_simple')
+def debug_simple():
+    """Simple disk debug without complex operations"""
     import os
     
     results = []
+    results.append("=== Simple Disk Debug ===")
     
-    # Check if /opt/data exists and is writable
-    disk_path = '/opt/data'
-    exists = os.path.exists(disk_path)
-    results.append(f"Disk path {disk_path}: {'EXISTS' if exists else 'MISSING'}")
+    # Check basic paths
+    paths = ['/', '/opt', '/opt/data', '/opt/data/config.json', 'config.json']
     
-    if exists:
-        # Check if we can write to it
-        test_file = '/opt/data/test.txt'
-        try:
-            with open(test_file, 'w') as f:
-                f.write('test')
-            results.append("✅ Can WRITE to /opt/data")
-            os.remove(test_file)
-        except Exception as e:
-            results.append(f"❌ Cannot write to /opt/data: {e}")
-        
-        # Check permissions
-        import stat
-        stat_info = os.stat(disk_path)
-        results.append(f"Permissions: {oct(stat_info.st_mode)}")
-    else:
-        results.append("❌ Persistent disk not mounted - check Render disk configuration")
+    for path in paths:
+        exists = os.path.exists(path)
+        results.append(f"{path}: {'EXISTS' if exists else 'MISSING'}")
     
     return "<br>".join(results)
+
+@app.route('/health')
+def health():
+    """Simple health check"""
+    return "OK - App is running"
 
 @app.route('/run_bot')
 def run_bot():
