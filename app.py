@@ -12,6 +12,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+@app.route('/test')
+def test():
+    return "Hello World! The app is working."
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
@@ -71,7 +75,11 @@ bot = PolymarketBot()
 # Routes
 @app.route('/')
 def dashboard():
-    return render_template('dashboard.html')
+    try:
+        return render_template('dashboard.html')
+    except Exception as e:
+        return f"Error loading template: {str(e)}", 500
+
 
 @app.route('/api/wallets', methods=['GET', 'POST'])
 def manage_wallets():
