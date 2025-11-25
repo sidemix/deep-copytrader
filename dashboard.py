@@ -70,6 +70,65 @@ def add_wallet():
     
     return redirect(url_for('index'))
 
+@app.route('/debug_disk_detailed')
+def debug_disk_detailed():
+    """Detailed disk debugging"""
+    import os
+    import stat
+    
+    results = []
+    results.append("=== DETAILED DISK DEBUG ===")
+    
+    # Check various paths
+    paths = [
+        '/',
+        '/opt', 
+        '/opt/data',
+        '/opt/data/config.json',
+        'config.json'
+    ]
+    
+    for path in paths:
+        exists = os.path.exists(path)
+        results.append(f"{path}: {'EXISTS' if exists else 'MISSING'}")
+        
+        if exists:
+            try:
+                # Check if it's a directory or file
+                if os.path.isdir(path):
+                    results.append(f"  Type: Directory")
+                    # List contents if it's /opt/data
+                    if path == '/opt/data':
+                        try:
+                            contents = os.listdir(path)
+                            results.append(f"  Contents: {contents}")
+                        except:
+                            results.append(f"  Cannot list contents")
+                else:
+                    results.append(f"  Type: File")
+                    results.append(f"  Size: {os.path.getsize(path)} bytes")
+                
+                # Check permissions
+                st = os.stat(path)
+                results.append(f"  Permissions: {oct(st.st_mode)}")
+                results.append(f"  Owner: {st.st_uid}:{st.st_gid}")
+                
+            except Exception as e:
+                results.append(f"  Error: {e}")
+    
+    # Test writing to disk
+    results.append("=== WRITE TEST ===")
+    test_path = '/opt/data/test_write.txt'
+    try:
+        with open(test_path, 'w') as f:
+            f.write('test content')
+        results.append(f"✅ SUCCESS: Can write to {test_path}")
+        os.remove(test_path)
+    except Exception as e:
+        results.append(f"❌ FAILED: Cannot write to {test_path}: {e}")
+    
+    return "<br>".join(results)
+
 @app.route('/toggle_wallet/<address>')
 def toggle_wallet(address):
     """Toggle wallet copying on/off"""
