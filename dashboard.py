@@ -232,10 +232,6 @@ def debug_simple():
     
     return "<br>".join(results)
 
-@app.route('/health')
-def health():
-    """Simple health check"""
-    return "OK - App is running"
 
 @app.route('/run_bot')
 def run_bot():
