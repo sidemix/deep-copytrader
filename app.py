@@ -1,13 +1,13 @@
+from flask import Flask, render_template, request, jsonify
+import requests
+import sqlite3
+from datetime import datetime
 import os
 import time
 import hmac
 import hashlib
 import base64
 import json
-from flask import Flask, render_template, request, jsonify
-import requests
-import sqlite3
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,21 +24,15 @@ def init_db():
     conn = get_db_connection()
     c = conn.cursor()
     
-    # Wallets table
     c.execute('''CREATE TABLE IF NOT EXISTS wallets
                  (id INTEGER PRIMARY KEY, address TEXT, nickname TEXT, 
-                  active INTEGER, total_profit REAL DEFAULT 0,
-                  total_trades INTEGER DEFAULT 0, winning_trades INTEGER DEFAULT 0,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                  active INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Trades table with profit tracking
     c.execute('''CREATE TABLE IF NOT EXISTS trades
                  (id INTEGER PRIMARY KEY, wallet_id INTEGER, market_id TEXT,
                   outcome TEXT, shares REAL, price REAL, type TEXT,
-                  profit_loss REAL DEFAULT 0, status TEXT,
-                  timestamp TIMESTAMP, closed_at TIMESTAMP)''')
+                  timestamp TIMESTAMP, status TEXT)''')
     
-    # Bot settings table
     c.execute('''CREATE TABLE IF NOT EXISTS settings
                  (key TEXT PRIMARY KEY, value TEXT)''')
     
@@ -52,195 +46,150 @@ class PolymarketBot:
         self.running = False
         self.test_mode = True
         self.risk_percentage = 10
-        self.api_key = os.environ.get('POLYMARKET_API_KEY')
-        self.api_secret = os.environ.get('POLYMARKET_API_SECRET')
-        self.passphrase = os.environ.get('POLYMARKET_PASSPHRASE')
-        self.funding_wallet = os.environ.get('FUNDING_WALLET_ADDRESS')
+        
+    def get_wallet_trades(self, wallet_address):
+        """Get recent trades for a wallet address"""
+        try:
+            # This is a placeholder - you'll need to implement actual Polymarket API calls
+            print(f"Would fetch trades for wallet: {wallet_address}")
+            return []
+        except Exception as e:
+            print(f"Error fetching trades: {e}")
+            return []
     
-    def get_wallet_performance(self, wallet_id):
-        """Get detailed performance metrics for a specific wallet"""
-        conn = get_db_connection()
-        c = conn.cursor()
+    def execute_trade(self, market_id, outcome, shares, price, trade_type):
+        """Execute a trade on Polymarket"""
+        if self.test_mode:
+            print(f"TEST MODE - Would execute: {trade_type} {shares} shares of {outcome} at ${price}")
+            return {"status": "test_mode", "id": f"test_{int(time.time())}"}
         
-        # Get wallet basic info
-        c.execute('''SELECT * FROM wallets WHERE id = ?''', (wallet_id,))
-        wallet = dict(c.fetchone()) if c.fetchone() else None
-        
-        if not wallet:
-            conn.close()
-            return None
-        
-        # Get trade statistics
-        c.execute('''
-            SELECT 
-                COUNT(*) as total_trades,
-                SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END) as winning_trades,
-                SUM(CASE WHEN profit_loss < 0 THEN 1 ELSE 0 END) as losing_trades,
-                SUM(profit_loss) as total_profit,
-                AVG(profit_loss) as avg_profit_per_trade,
-                MAX(profit_loss) as best_trade,
-                MIN(profit_loss) as worst_trade
-            FROM trades 
-            WHERE wallet_id = ? AND status = 'closed'
-        ''', (wallet_id,))
-        
-        stats = dict(c.fetchone())
-        
-        # Get recent trades
-        c.execute('''
-            SELECT * FROM trades 
-            WHERE wallet_id = ? 
-            ORDER BY timestamp DESC 
-            LIMIT 10
-        ''', (wallet_id,))
-        recent_trades = [dict(row) for row in c.fetchall()]
-        
-        # Calculate win rate
-        win_rate = (stats['winning_trades'] / stats['total_trades'] * 100) if stats['total_trades'] > 0 else 0
-        
-        performance = {
-            'wallet_info': wallet,
-            'stats': {
-                'total_trades': stats['total_trades'] or 0,
-                'winning_trades': stats['winning_trades'] or 0,
-                'losing_trades': stats['losing_trades'] or 0,
-                'win_rate': round(win_rate, 2),
-                'total_profit': stats['total_profit'] or 0,
-                'avg_profit_per_trade': stats['avg_profit_per_trade'] or 0,
-                'best_trade': stats['best_trade'] or 0,
-                'worst_trade': stats['worst_trade'] or 0,
-                'profitability': 'Profitable' if (stats['total_profit'] or 0) > 0 else 'Losing'
-            },
-            'recent_trades': recent_trades
-        }
-        
-        conn.close()
-        return performance
-    
-    def get_all_wallets_performance(self):
-        """Get performance overview for all wallets"""
-        conn = get_db_connection()
-        c = conn.cursor()
-        
-        c.execute('''
-            SELECT 
-                w.id,
-                w.nickname,
-                w.address,
-                w.active,
-                COUNT(t.id) as total_trades,
-                SUM(CASE WHEN t.profit_loss > 0 THEN 1 ELSE 0 END) as winning_trades,
-                SUM(t.profit_loss) as total_profit,
-                CASE 
-                    WHEN COUNT(t.id) > 0 THEN 
-                        ROUND((SUM(CASE WHEN t.profit_loss > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(t.id)), 2)
-                    ELSE 0 
-                END as win_rate,
-                w.created_at
-            FROM wallets w
-            LEFT JOIN trades t ON w.id = t.wallet_id AND t.status = 'closed'
-            GROUP BY w.id, w.nickname, w.address
-            ORDER BY total_profit DESC
-        ''')
-        
-        wallets_performance = []
-        for row in c.fetchall():
-            wallet_data = dict(row)
-            
-            # Determine performance rating
-            total_profit = wallet_data['total_profit'] or 0
-            win_rate = wallet_data['win_rate'] or 0
-            
-            if total_profit > 0 and win_rate > 60:
-                performance_rating = 'Excellent'
-            elif total_profit > 0 and win_rate > 50:
-                performance_rating = 'Good'
-            elif total_profit > 0:
-                performance_rating = 'Fair'
-            elif total_profit == 0:
-                performance_rating = 'Neutral'
-            else:
-                performance_rating = 'Poor'
-            
-            wallet_data['performance_rating'] = performance_rating
-            wallet_data['status_badge'] = 'active' if wallet_data['active'] else 'inactive'
-            
-            wallets_performance.append(wallet_data)
-        
-        conn.close()
-        return wallets_performance
-
-    def archive_wallet(self, wallet_id):
-        """Archive a wallet (set inactive)"""
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute('UPDATE wallets SET active = 0 WHERE id = ?', (wallet_id,))
-        conn.commit()
-        conn.close()
-        return True
-    
-    def activate_wallet(self, wallet_id):
-        """Reactivate a wallet"""
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute('UPDATE wallets SET active = 1 WHERE id = ?', (wallet_id,))
-        conn.commit()
-        conn.close()
-        return True
-
-    # ... (keep your existing get_wallet_trades, execute_trade, copy_trade methods)
+        # Real trading implementation would go here
+        return {"status": "real_trade_disabled", "message": "Real trading not implemented"}
 
 bot = PolymarketBot()
 
-# Enhanced API Routes
-@app.route('/api/wallets/performance')
-def get_wallets_performance():
-    """Get performance data for all wallets"""
-    try:
-        performance_data = bot.get_all_wallets_performance()
-        return jsonify(performance_data)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Routes
+@app.route('/')
+def dashboard():
+    return render_template('dashboard.html')
 
-@app.route('/api/wallets/<int:wallet_id>/performance')
-def get_wallet_performance(wallet_id):
-    """Get detailed performance for a specific wallet"""
-    try:
-        performance = bot.get_wallet_performance(wallet_id)
-        if performance:
-            return jsonify(performance)
-        else:
-            return jsonify({'error': 'Wallet not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/wallets', methods=['GET', 'POST'])
+def manage_wallets():
+    conn = get_db_connection()
+    
+    if request.method == 'POST':
+        data = request.json
+        address = data.get('address', '').strip()
+        nickname = data.get('nickname', '').strip()
+        
+        if not address or not nickname:
+            return jsonify({"status": "error", "message": "Address and nickname required"})
+        
+        c = conn.cursor()
+        c.execute("INSERT INTO wallets (address, nickname, active) VALUES (?, ?, 1)", 
+                 (address, nickname))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"status": "success", "message": "Wallet added"})
+    
+    else:
+        c = conn.cursor()
+        c.execute("SELECT * FROM wallets ORDER BY created_at DESC")
+        wallets = [dict(row) for row in c.fetchall()]
+        conn.close()
+        return jsonify(wallets)
 
-@app.route('/api/wallets/<int:wallet_id>/archive', methods=['POST'])
-def archive_wallet(wallet_id):
-    """Archive a wallet"""
-    try:
-        success = bot.archive_wallet(wallet_id)
-        if success:
-            return jsonify({'status': 'success', 'message': 'Wallet archived'})
-        else:
-            return jsonify({'error': 'Wallet not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/wallets/<int:wallet_id>', methods=['DELETE'])
+def delete_wallet(wallet_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM wallets WHERE id = ?", (wallet_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "success", "message": "Wallet deleted"})
 
-@app.route('/api/wallets/<int:wallet_id>/activate', methods=['POST'])
-def activate_wallet(wallet_id):
-    """Activate a wallet"""
-    try:
-        success = bot.activate_wallet(wallet_id)
-        if success:
-            return jsonify({'status': 'success', 'message': 'Wallet activated'})
-        else:
-            return jsonify({'error': 'Wallet not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/api/bot/start', methods=['POST'])
+def start_bot():
+    data = request.json
+    bot.test_mode = data.get('test_mode', True)
+    bot.running = True
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+             ('test_mode', str(bot.test_mode).lower()))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"Bot started in {'TEST' if bot.test_mode else 'LIVE'} mode"
+    })
 
-# ... (keep your existing routes)
+@app.route('/api/bot/stop', methods=['POST'])
+def stop_bot():
+    bot.running = False
+    return jsonify({"status": "success", "message": "Bot stopped"})
 
+@app.route('/api/bot/status')
+def bot_status():
+    return jsonify({
+        "running": bot.running,
+        "test_mode": bot.test_mode,
+        "risk_percentage": bot.risk_percentage
+    })
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+def manage_settings():
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    if request.method == 'POST':
+        data = request.json
+        risk_percentage = data.get('risk_percentage')
+        
+        if risk_percentage and 1 <= risk_percentage <= 100:
+            bot.risk_percentage = risk_percentage
+            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                     ('risk_percentage', str(risk_percentage)))
+            conn.commit()
+        
+        conn.close()
+        return jsonify({"status": "success", "message": "Settings updated"})
+    
+    else:
+        c.execute("SELECT * FROM settings")
+        settings = {row[0]: row[1] for row in c.fetchall()}
+        conn.close()
+        return jsonify(settings)
+
+@app.route('/api/analytics')
+def get_analytics():
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    c.execute("SELECT COUNT(*) FROM wallets")
+    total_wallets = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM trades")
+    total_trades = c.fetchone()[0]
+    
+    analytics = {
+        'total_wallets': total_wallets,
+        'total_trades': total_trades,
+        'bot_status': 'RUNNING' if bot.running else 'STOPPED',
+        'mode': 'TEST DRY RUN' if bot.test_mode else 'LIVE',
+        'risk_percentage': bot.risk_percentage
+    }
+    
+    conn.close()
+    return jsonify(analytics)
+
+@app.route('/health')
+def health_check():
+    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
